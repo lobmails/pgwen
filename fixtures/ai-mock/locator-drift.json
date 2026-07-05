@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "name": "locator-drift",
+    "purpose": "Claude classifies a locator-not-found failure as locator_drift with a machine_proposal — the canonical happy path for the auto-fix flow.",
+    "matches_on": "prompt contains 'Locator not found' (from error_message in DiagnoseInput)"
+  },
+  "calls": [
+    {
+      "matchOn": { "containsInPrompt": "Locator not found" },
+      "response": {
+        "output": {
+          "category": "locator_drift",
+          "confidence": "high",
+          "human_explanation": "The 'login button' binding uses css '[data-testid=\"login-btn\"]' but the live DOM exposes data-test-id (with hyphen) on the same element. The element exists; only the attribute name shifted. A minimum-diff rebind to the new attribute is safe.",
+          "evidence": [
+            "Pre-failure DOM excerpt: <button data-test-id=\"login-btn\" class=\"btn-primary\">Sign in</button>",
+            "Binding declared at meta/Login.meta:14 with selector_strategy=css",
+            "Sibling scenario 'login with remembered creds' bound the same element via 'role text Sign in' and passed"
+          ],
+          "alternatives_considered": [
+            { "option": "Treat as app_regression (button removed)", "rejected_because": "DOM excerpt shows the button is present, only the attribute name changed" },
+            { "option": "Treat as timing (slow render)", "rejected_because": "No async hydration window — the element is in the initial server-rendered HTML" }
+          ],
+          "files_likely_involved": [
+            { "path": "meta/Login.meta", "role": "locator" }
+          ],
+          "escalation_signals": {
+            "prior_pgwen_fix_on_same_line": false,
+            "shared_meta_imported_by_multiple_features": false,
+            "failure_repeated_in_consecutive_runs": false
+          },
+          "machine_proposal": {
+            "binding_name": "login button",
+            "file": "meta/Login.meta",
+            "line": 14,
+            "old": "the login button can be located by css \"[data-testid='login-btn']\"",
+            "new": "the login button can be located by css \"[data-test-id='login-btn']\"",
+            "original_selector_match_count_in_dom": 0
+          },
+          "auto_fix_safe": true
+        },
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-locator-drift-001",
+        "provider": "claude"
+      }
+    }
+  ]
+}

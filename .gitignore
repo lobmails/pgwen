@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test / coverage output
+coverage/
+test-results/
+playwright-report/
+.nyc_output/
+
+# Packaged tarballs and pack metadata
+*.tgz
+.yarn-metadata.json
+
+# Runtime output (framework writes here)
+pgwen/output/
+
+# Logs
+*.log
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Claude Code local session state
+.claude/settings.local.json
+.claude/skills/*/local
+.bin/
+
+# Cache
+.cache/
+.yarn/cache/
+.yarn/install-state.gz
+
+# Local registry config (each dev configures their own)
+.npmrc
+.yarnrc
+   
+# Local framework validation tests only
+tests/
+
+# Local development only
+pgwen-migrate/
+sample-report/

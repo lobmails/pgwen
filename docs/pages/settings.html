@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="settings">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html">
+    <span class="logo-mark">p</span>
+    pgwen
+  </a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Reference / Settings</div>
+    <h1>Settings reference</h1>
+    <p>
+      pgwen reads configuration from <code>pgwen.conf</code> in the project root, layered with
+      optional profile and environment configs. All settings live under the top-level
+      <code>pgwen</code> HOCON block.
+    </p>
+
+    <h2 id="file-layout">File layout <a href="#file-layout" class="anchor">#</a></h2>
+    <p>A typical project directory:</p>
+    <pre><code>my-project/
+├── pgwen.conf            # base config — this page documents every key
+├── package.json          # yarn scripts that invoke pgwen
+└── pgwen/
+    ├── conf/
+    │   ├── browsers/     # chromium.conf, firefox.conf, grid.conf, ...
+    │   ├── env/          # test.json, prod.json — selected by pgwen.target.env
+    │   └── profiles/     # todo.conf, calculator.conf — selected by -p
+    ├── features/         # .feature + .meta files
+    └── meta/             # shared meta (e.g. Results.meta)</code></pre>
+
+    <h2 id="layering">Config layering <a href="#layering" class="anchor">#</a></h2>
+    <p>Files are merged in this order — later layers override earlier ones:</p>
+    <ol>
+      <li><code>pgwen.conf</code> in the project root (base)</li>
+      <li><code>pgwen/conf/env/&lt;pgwen.target.env&gt;.conf</code> or <code>.json</code> (auto-loaded if <code>pgwen.target.env</code> is set)</li>
+      <li>Each <code>-c &lt;file&gt;</code> CLI argument, in order given</li>
+      <li><code>pgwen/conf/profiles/base.conf</code> (if exists and profile ≠ <code>base</code>)</li>
+      <li><code>pgwen/conf/profiles/&lt;-p value&gt;.conf</code> (if <code>-p</code> given)</li>
+    </ol>
+
+    <h2 id="core">Core settings <a href="#core" class="anchor">#</a></h2>
+
+    <h3 id="pgwen-target-browser"><code>pgwen.target.browser</code></h3>
+    <p>Playwright browser engine. One of <code>chromium</code>, <code>firefox</code>, <code>webkit</code>. Default: <code>chromium</code>.</p>
+    <pre><code>pgwen {
+  target {
+    browser = "chromium"
+  }
+}</code></pre>
+
+    <h3 id="pgwen-target-env"><code>pgwen.target.env</code></h3>
+    <p>Target environment name. When set, pgwen auto-loads <code>pgwen/conf/env/&lt;env&gt;.conf</code> or <code>.json</code>.</p>
+    <pre><code>pgwen.target.env = "test"</code></pre>
+
+    <h3 id="pgwen-web-browser-headless"><code>pgwen.web.browser.headless</code></h3>
+    <p>Run the browser without a visible window. Default: <code>true</code>. CLI override: <code>--headed</code>.</p>
+
+    <h3 id="pgwen-web-browser-size"><code>pgwen.web.browser.size</code></h3>
+    <p>Viewport size as <code>WIDTHxHEIGHT</code>. Default: <code>1280x720</code>.</p>
+    <pre><code>pgwen.web.browser.size = "1920x1080"</code></pre>
+
+    <h3 id="pgwen-web-maximize"><code>pgwen.web.maximize</code></h3>
+    <p>If <code>true</code>, the viewport is unset and the browser uses its native window size. Default: <code>false</code>.</p>
+
+    <h3 id="pgwen-web-capture-screenshots"><code>pgwen.web.capture.screenshots</code></h3>
+    <p>Capture a screenshot on every step failure and attach it to the HTML report.</p>
+    <pre><code>pgwen {
+  web.capture.screenshots {
+    enabled      = true
+    duplicates   = false
+    highlighting = false
+  }
+}</code></pre>
+
+    <h3 id="pgwen-web-wait-seconds"><code>pgwen.web.wait.seconds</code></h3>
+    <p>Default Playwright timeout in seconds for locator-aware steps (<code>waitFor</code>, assertions, etc.). Default: <code>20</code>.</p>
+
+    <h3 id="pgwen-web-assertions"><code>pgwen.web.assertions</code></h3>
+    <pre><code>pgwen.web.assertions {
+  delayMillisecs = 200      # poll interval inside FluentWait-style assertions
+  maxStrikes     = auto     # number | infinity | auto (auto = unlimited within timeout)
+}</code></pre>
+
+    <h3 id="pgwen-web-throttle-msecs"><code>pgwen.web.throttle.msecs</code></h3>
+    <p>Slow each browser action down by this many ms — useful when watching the browser run in headed mode. Default: <code>100</code>.</p>
+
+    <h3 id="pgwen-web-useragent"><code>pgwen.web.useragent</code></h3>
+    <p>User-Agent string applied to every page in the context.</p>
+
+    <h3 id="pgwen-web-suppress-images"><code>pgwen.web.suppress.images</code></h3>
+    <p>Block image requests at the network layer — speeds up runs against image-heavy apps. Default: <code>false</code>.</p>
+
+    <h2 id="launch-options">Launch options <a href="#launch-options" class="anchor">#</a></h2>
+    <p>
+      Most CLI flags can be set persistently in <code>pgwen.launch.options.*</code>.
+      Profile-level conf files (under <code>pgwen/conf/profiles/</code>) commonly override
+      these per-project-process.
+    </p>
+    <table>
+      <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>pgwen.launch.options.features</code></td><td>list&lt;path&gt;</td><td>Feature files (or directories) to execute. Equivalent to positional CLI args.</td></tr>
+        <tr><td><code>pgwen.launch.options.meta</code></td><td>list&lt;path&gt;</td><td>Common <code>.meta</code> files/dirs loaded before any feature.</td></tr>
+        <tr><td><code>pgwen.launch.options.inputData</code></td><td>path</td><td>CSV or JSON data feed (equivalent to <code>-i</code>).</td></tr>
+        <tr><td><code>pgwen.launch.options.tags</code></td><td>list&lt;str&gt;</td><td>Tag filter expression, e.g. <code>["@smoke", "~@wip"]</code>.</td></tr>
+        <tr><td><code>pgwen.launch.options.parallel</code></td><td>boolean</td><td>Run feature files in parallel.</td></tr>
+        <tr><td><code>pgwen.launch.options.dryRun</code></td><td>boolean</td><td>Skip browser steps; validate step resolution only.</td></tr>
+        <tr><td><code>pgwen.launch.options.format</code></td><td>list&lt;str&gt;</td><td>Report formats: <code>html</code>, <code>junit</code>, <code>json</code>, <code>results</code>, <code>none</code>.</td></tr>
+        <tr><td><code>pgwen.launch.options.report</code></td><td>path</td><td>Report output directory. Default: <code>${pgwen.outDir}/reports</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="behaviour">Behaviour rules <a href="#behaviour" class="anchor">#</a></h2>
+    <p><code>pgwen.behaviour.rules</code> (or American spelling <code>pgwen.behavior.rules</code>) controls keyword enforcement for <code>@Context</code>/<code>@Action</code>/<code>@Assertion</code> StepDef annotations. <code>strict</code> rejects mismatched keyword/role pairs; <code>lenient</code> allows them. Default: <code>strict</code>.</p>
+
+    <h2 id="failfast">Failfast <a href="#failfast" class="anchor">#</a></h2>
+    <pre><code>pgwen.feature.failfast {
+  enabled = true        # stop after first failed scenario
+  exit    = false       # if also true, exit the whole run after first failed feature
+}</code></pre>
+
+    <h2 id="state">State scope <a href="#state" class="anchor">#</a></h2>
+    <p><code>pgwen.state.level</code> controls how long bindings live. <code>feature</code> (default) keeps them for the whole feature; <code>scenario</code> resets feature-level bindings between scenarios.</p>
+
+    <h2 id="autotrim">Data feed autoTrim <a href="#autotrim" class="anchor">#</a></h2>
+    <pre><code>pgwen.auto.trim.data {
+  csv  = true     # default for CSV feeds
+  json = false    # default for JSON feeds
+}</code></pre>
+
+    <h2 id="masking">Masking <a href="#masking" class="anchor">#</a></h2>
+    <p>Any setting suffixed <code>:masked</code> is replaced with <code>pgwen.mask.char</code> (default <code>*</code>) in console output and reports.</p>
+    <pre><code>my-secret:masked = "${env.MY_TOKEN}"</code></pre>
+
+    <h2 id="w3c-capabilities">W3C / WebDriver-style capabilities <a href="#w3c-capabilities" class="anchor">#</a></h2>
+    <p>
+      Keys under <code>pgwen.web.capabilities.*</code> follow the W3C WebDriver capability
+      vocabulary. pgwen translates the well-known ones to Playwright equivalents at
+      browser-context creation time. Unknown keys are stored on the resolved
+      <code>BrowserConfig.capabilities</code> map for grid-specific use.
+    </p>
+    <table>
+      <thead>
+        <tr><th>W3C / WebDriver-style key</th><th>Playwright equivalent</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>pgwen.web.capabilities.pageLoadStrategy</code></td>
+          <td><code>goto/reload/goBack/goForward(url, {waitUntil})</code></td>
+          <td><code>eager</code> → <code>domcontentloaded</code>, <code>normal</code> → <code>load</code>, <code>none</code> → <code>commit</code>. Read from scope at each step.</td>
+        </tr>
+        <tr>
+          <td><code>pgwen.web.capabilities.acceptInsecureCerts</code></td>
+          <td>context <code>ignoreHTTPSErrors</code></td>
+          <td>Boolean. Useful in dev/test against self-signed endpoints.</td>
+        </tr>
+        <tr>
+          <td><code>pgwen.web.capabilities.locale</code></td>
+          <td>context <code>locale</code></td>
+          <td>BCP-47, e.g. <code>en-AU</code>.</td>
+        </tr>
+        <tr>
+          <td><code>pgwen.web.capabilities.se:timeZone</code></td>
+          <td>context <code>timezoneId</code></td>
+          <td>WebDriver-style grid convention. timezone, e.g. <code>Australia/Sydney</code>.</td>
+        </tr>
+        <tr>
+          <td><code>pgwen.web.capabilities.proxy.*</code></td>
+          <td>context <code>proxy</code></td>
+          <td><code>sslProxy</code> preferred; <code>socks5://</code> inferred when only <code>socksProxy</code> is set; <code>proxyType=direct</code> disables.</td>
+        </tr>
+        <tr>
+          <td><code>pgwen.web.capabilities.browserName</code></td>
+          <td><code>pgwen.target.browser</code></td>
+          <td><code>chrome</code> / <code>MicrosoftEdge</code> → <code>chromium</code>. Overrides <code>pgwen.target.browser</code> when both set.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Heads up</strong>
+      Unknown capability keys are passed through as raw strings — pgwen never rejects
+      them, but only the keys above produce a real behaviour change in Playwright.
+    </div>
+
+    <h2 id="remote">Remote browsers <a href="#remote" class="anchor">#</a></h2>
+    <p><code>pgwen.web.remote.url</code> connects to a remote Playwright endpoint (WebSocket or CDP) instead of launching locally:</p>
+    <pre><code>pgwen.web.remote.url = "ws://playwright-grid:9222/playwright"</code></pre>
+
+    <h2 id="reports">Reports <a href="#reports" class="anchor">#</a></h2>
+    <pre><code>pgwen.report {
+  overwrite = false      # if false, append a numeric suffix on collision
+  suppress {
+    meta = true          # hide @StepDef-only feature pages from the index
+  }
+  results {              # custom CSV outputs — see Reports guide
+    fields { ... }
+    files  { ... }
+  }
+}</code></pre>
+
+    <p>The full list of report-related keys is documented in the <a href="reports.html">Reports</a> guide.</p>
+
+    <h2 id="diagnose">Diagnose &amp; telemetry <a href="#diagnose" class="anchor">#</a></h2>
+    <p>
+      Every failed step gets a rule-based <strong>failure classification</strong> attached
+      automatically — see the coloured badge in the HTML report's error panel and the
+      <code>failureClass</code> field in <code>results.json</code>. Classification runs free
+      (no API key, no network) and the classes feed the <code>pgwen diagnose --rules-only</code>
+      CLI.
+    </p>
+
+    <p>
+      Two opt-in keys gate the longer-running telemetry collection that the AI-assisted
+      fix track depends on. Both default to <em>off</em>.
+    </p>
+
+    <pre><code>pgwen.diagnose {
+  enabled         = false    # reserved — gates future Claude-backed diagnose paths
+  history.enabled = false    # write per-failure JSON sidecars under
+                             #   &lt;output&gt;/reports/diagnosis-history/
+                             # Used to measure classifier false-positive rate.
+}</code></pre>
+
+    <p>
+      When <code>history.enabled = true</code>, pgwen writes one JSON sidecar per failed
+      leaf step at the end of each run. Filename format:
+      <code>&lt;feature&gt;__&lt;scenario&gt;__&lt;isoStamp&gt;.json</code>; collisions get
+      <code>-2</code>/<code>-3</code> suffixes so parallel runs don't overwrite each other.
+      Sidecars are local-only — no network call is ever made.
+    </p>
+
+    <p>
+      The environment variable <code>PGWEN_AI_DISABLED=1</code> is a hard kill switch that
+      short-circuits <em>all</em> diagnose-track writes regardless of config. Use it for
+      incident response.
+    </p>
+
+    <h3 id="diagnose-ai">AI-assisted diagnose (opt-in) <a href="#diagnose-ai" class="anchor">#</a></h3>
+    <p>
+      The Claude-backed branch of <code>pgwen diagnose</code> runs automatically when the
+      gates below pass. Invoke <code>pgwen diagnose</code> with no flag for AI mode; pass
+      <code>--rules-only</code> to force the offline path, or <code>--report</code> to
+      produce a telemetry-analysis Markdown summary instead of per-failure diagnosis.
+      Other flags: <code>--no-cache</code> (bypass the response cache), <code>--dry-run</code>
+      (estimate costs without calling Claude), and <code>--config &lt;path&gt;</code>
+      (custom pgwen.conf location).
+    </p>
+
+    <p>
+      The <code>--report</code> mode reads
+      <code>&lt;output&gt;/reports/diagnosis-history/*.json</code> and
+      <code>&lt;output&gt;/reports/diagnosis-cache/&lt;aa&gt;/*.json</code> and emits:
+      counts per classifier class × confidence, per AI category × confidence, token totals,
+      machine-proposal + auto_fix_safe tallies, model usage, and — once reviewers
+      annotate history entries with <code>human_action</code> + <code>outcome</code> —
+      the false-positive rate per class. The target threshold below which
+      <code>@pgwen/fix</code> can ship is &lt; 2 %.
+    </p>
+
+    <p>
+      The <code>--annotate</code> mode is the review workflow that populates those
+      fields. Running <code>pgwen diagnose --annotate</code> walks every unannotated
+      history entry in stable filename order and prompts the reviewer:
+    </p>
+
+    <pre><code>$ pgwen diagnose --annotate
+Scanning pgwen/output/reports/diagnosis-history/
+  3 already annotated · 12 pending review
+
+[1/12] Login__Valid-credentials__2026-06-15T10-00-00-000Z.json
+  Feature:    Login  (features/Login.feature)
+  Scenario:   Valid credentials
+  Step:       When I click the submit button
+  Error:      locator.click: Timeout 5000ms exceeded
+  Classifier: LOCATOR_NOT_FOUND (high)
+
+  Human action? [l]ocator / [a]pp / [n]o action / [o]ther / [s]kip / [q]uit: l
+  Outcome? [t]rue positive / [f]alse positive / [a]cceptable / [s]kip / [q]uit: t
+  Saved: human_action=fixed_locator outcome=true_positive</code></pre>
+
+    <p>
+      Use <code>--limit N</code> to cap the session to N entries. Existing annotations
+      are preserved across runs — only entries without an <code>outcome</code> field
+      are surfaced for review.
+    </p>
+
+    <p>
+      pgwen falls back to <code>--rules-only</code> output WITH a notice whenever a gate
+      fails — so a missing key, a disabled flag, or a config-less working directory never
+      produces an empty report. AI mode reads the API key from one of three sources
+      (highest precedence first):
+    </p>
+    <ol>
+      <li>Programmatic override (used by tests).</li>
+      <li>Environment variable — name configurable, defaults to <code>ANTHROPIC_API_KEY</code>.
+        Recommended; the key never lands on disk.</li>
+      <li><code>pgwen.diagnose.ai.api.key</code> in <code>pgwen.conf</code> — MUST be declared with
+        the <code>:masked</code> suffix so the HOCON loader redacts it in reports and logs.
+        pgwen emits a warning when it finds the key here without the masked suffix.</li>
+    </ol>
+
+    <p>
+      All other AI knobs sit under <code>pgwen.diagnose.ai.*</code>. Every value here has
+      a sensible default; the config is opt-in for overrides.
+    </p>
+
+    <pre><code>pgwen.diagnose.ai {
+  enabled  = false                     # master gate (default false)
+  provider = "claude"                  # "claude" | "openai" | "azure-openai" | "copilot"
+
+  api {
+    keyEnv      = "ANTHROPIC_API_KEY"  # env var pgwen reads the key from
+    "key:masked" = "sk-ant-..."        # fallback when the env var is absent;
+                                       # the `:masked` suffix is REQUIRED — without it
+                                       # pgwen warns and the value can appear in logs.
+  }
+
+  # Per-provider model + extras. Only the block for the selected provider is read.
+  model            = "claude-sonnet-4-6"   # cross-provider fallback when *.model isn't set
+  claude.model     = "claude-sonnet-4-6"
+  openai.model     = "gpt-4o-2024-08-06"
+  copilot.model    = "gpt-4o"
+  azureOpenai {
+    model      = "gpt-4o"             # deployment alias also fine here
+    resource   = "example-ai"          # &lt;resource&gt;.openai.azure.com — required unless baseUrl is set
+    deployment = "gpt4o-prod"         # Azure deployment name — REQUIRED
+    apiVersion = "2024-08-01-preview" # REQUIRED
+    # baseUrl  = "https://gateway.example/proxy"  # overrides resource for Azure AI gateways
+  }
+
+  cost {
+    perRunUsd   = 0                    # 0 = unlimited; e.g. set to 2 for $2/run cap
+    perDayUsd   = 0                    # 0 = unlimited; e.g. set to 10 for $10/project/day cap
+  }
+
+  rate {
+    callsPerWindow = 30                # default 30 calls per 5-minute window
+    windowMs       = 300000
+  }
+
+  pricing {                            # optional — per-model rate overrides on top of defaults
+    "claude-haiku-4-5-20251001" {
+      output = 4.50                    # only the fields you change need to be set
+    }
+  }
+}</code></pre>
+
+    <p>
+      <strong>Provider precedence:</strong>
+      <code>--provider</code> CLI flag &gt; <code>PGWEN_AI_PROVIDER</code> env
+      (pgwen new only) &gt; <code>pgwen.diagnose.ai.provider</code> config &gt;
+      default <code>"claude"</code>. Each provider reads its own API-key env
+      var: <code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code> /
+      <code>AZURE_OPENAI_API_KEY</code> / <code>GITHUB_TOKEN</code> respectively.
+      Unknown provider names fail loud (no silent fallback to a default).
+    </p>
+
+    <p>
+      <strong>Privacy:</strong> a generic PII scrubber runs over every bundle before it
+      reaches Claude (email, JWT, Luhn-validated credit cards, AU/E.164 phone numbers).
+      Projects add domain-specific regexes via <code>extraPatterns</code>; the scrubber is
+      on by default. The <code>PGWEN_AI_DISABLED=1</code> env hard-stops every AI-track
+      write, including history sidecars.
+    </p>
+
+    <p>
+      <strong>Bundle enrichment:</strong> when AI mode runs, pgwen looks up the failing
+      step's locator binding in the loaded meta files (heuristic — matches the longest
+      binding name that appears as a whole-word match in the step text) and includes:
+      the binding's file:line, selector strategy + value, and ±5 lines of source context.
+      It also runs <code>git log -p --no-merges -n5 -- &lt;feature.feature&gt; &lt;Binding.meta&gt;</code>
+      from the project directory and includes the capped diff in
+      <code>history.recent_diffs</code>. Both enrichments degrade gracefully — a missing
+      git repo, an unparseable meta file, or no name match all yield empty fields rather
+      than a crash. This is what lets Claude tell "the locator changed" from "the app
+      changed" without the on-call dev guessing.
+    </p>
+
+    <h3 id="diagnose-pattern-grouping">Pattern-level grouping <a href="#diagnose-pattern-grouping" class="anchor">#</a></h3>
+    <p>
+      AI mode groups failures by a conservative fingerprint (classification class +
+      locator binding file:line + selector strategy + selector value) before calling
+      Claude. One representative goes to Claude on behalf of the whole group; the
+      <code>DiagnoseOutput</code> is then fanned out to every group instance. Same
+      broken locator firing in 500 scenarios costs <strong>one</strong> Claude call,
+      not 500.
+    </p>
+    <p>
+      No config knob — grouping is default-on, parity-baseline-safe, and only affects
+      AI mode. To force one Claude call per failure (e.g. for research / measurement)
+      pass <code>--no-pattern-grouping</code> at the CLI. When the locator binding
+      cannot be resolved for a given failure, the fingerprint falls back to a
+      per-failure unique key so the failure is never silently merged with an unrelated
+      pattern.
+    </p>
+
+    <h2 id="fix">@pgwen/fix (suggest-only) <a href="#fix" class="anchor">#</a></h2>
+    <p>
+      The peer package <code>@pgwen/fix</code> turns Claude's
+      <code>machine_proposal</code> entries into reviewable patches + a self-contained
+      HTML report. Every knob lives under <code>pgwen.fix.*</code> in the project's
+      <code>pgwen.conf</code> and every default is OFF — parity baseline unchanged
+      until the project opts in.
+    </p>
+
+    <pre><code>pgwen {
+  fix {
+    enabled = false                       # master gate
+    reportsDir = "reports/pgwen-fix"      # destination for suggestions/, index.html, history.jsonl
+    confidenceMinimum = "high"            # "high" | "medium" — never "low"
+    diffMaxLines = 20                     # reject patches exceeding this many +/- lines
+    allowedPathPrefixes = ["pgwen/meta/"] # patch must touch only these prefixes
+    repeatWindowDays = 14                 # ledger look-back for the circuit breaker
+    repeatMaxAttempts = 2                 # max prior `written` outcomes per fingerprint
+    githubEnabled = false                 # opt-in PR comment poster (also requires env vars)
+  }
+}</code></pre>
+
+    <h3 id="fix-keys">Settings detail <a href="#fix-keys" class="anchor">#</a></h3>
+
+    <table>
+      <thead><tr><th>Key</th><th>Default</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>pgwen.fix.enabled</code></td><td><code>false</code></td><td>Master gate. When <code>false</code>, <code>pgwen-fix</code> is a no-op even if invoked.</td></tr>
+        <tr><td><code>pgwen.fix.reportsDir</code></td><td><code>"reports/pgwen-fix"</code></td><td>Where suggestions land. Resolved relative to the working directory.</td></tr>
+        <tr><td><code>pgwen.fix.confidenceMinimum</code></td><td><code>"high"</code></td><td>Lowest Claude confidence accepted. <code>"low"</code> is never accepted regardless.</td></tr>
+        <tr><td><code>pgwen.fix.diffMaxLines</code></td><td><code>20</code></td><td>Total +/- content lines in the unified diff. Headers do not count.</td></tr>
+        <tr><td><code>pgwen.fix.allowedPathPrefixes</code></td><td><code>["pgwen/meta/"]</code></td><td>Patch <code>file</code> must start with one of these prefixes — keeps suggestions inside meta files and out of <code>src/</code>, CI config, etc.</td></tr>
+        <tr><td><code>pgwen.fix.repeatWindowDays</code></td><td><code>14</code></td><td>Look-back window for the repeat-fix circuit breaker.</td></tr>
+        <tr><td><code>pgwen.fix.repeatMaxAttempts</code></td><td><code>2</code></td><td>Max prior <code>written</code> outcomes per fingerprint inside the window before the candidate is rejected as <code>repeat_fix</code>.</td></tr>
+        <tr><td><code>pgwen.fix.githubEnabled</code></td><td><code>false</code></td><td>Opt-in flag for the GitHub PR commenter. Even when <code>true</code>, the commenter is silent unless the env vars below are also set.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="fix-env">Required environment variables <a href="#fix-env" class="anchor">#</a></h3>
+
+    <p>The optional GitHub PR commenter activates only when ALL of these are set:</p>
+
+    <table>
+      <thead><tr><th>Env var</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>GITHUB_TOKEN</code></td><td>PAT or app token with <code>pull-requests: write</code> on the target repo.</td></tr>
+        <tr><td><code>PGWEN_FIX_GH_REPO</code></td><td><code>owner/repo</code> e.g. <code>example-org/example-repo</code>.</td></tr>
+        <tr><td><code>PGWEN_FIX_GH_PR</code></td><td>Pull request number to comment on.</td></tr>
+        <tr><td><code>GITHUB_API_URL</code></td><td>Optional GitHub Enterprise base URL. Defaults to <code>https://api.github.com</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      Without those env vars the commenter is a silent no-op — every run still
+      writes the JSON / patch sidecars and the HTML report locally. See the
+      <a href="diagnose.html#pgwen-fix"><code>@pgwen/fix</code> README</a>
+      for the end-to-end usage walkthrough.
+    </p>
+
+    <h2 id="heal">Runtime self-heal <a href="#heal" class="anchor">#</a></h2>
+    <p>
+      The <code>src/heal/</code> pipeline (Phase 3.6a — pipeline complete,
+      engine hook 3.6b deferred) wires gate → bundle → prompt → AI call →
+      confidence floor → validator → cache → telemetry. Strict opt-in;
+      every default is off.
+    </p>
+    <pre><code>pgwen {
+  heal {
+    enabled = false                      # master gate — only literal "true" turns on
+    mode    = "session"                  # "session" | "persist"
+
+    budget {
+      maxAttemptsPerStep      = 1
+      maxAttemptsPerScenario  = 3
+      maxAttemptsPerRun       = 10
+      maxUsdPerRun            = 0.50     # 0 = unlimited (matches diagnose BudgetCaps)
+    }
+
+    confidence {
+      minimum = "high"                   # post-AI floor; lower values rejected
+    }
+
+    validation {
+      requireExactOneMatch = true        # proposal must locate exactly 1 element
+      requireTagMatch      = true        # element tag must match expected_tag
+    }
+
+    cooldown {
+      seconds = 300                      # refuse to re-heal the same binding too soon
+    }
+
+    recentDiffs {
+      enabled = false                    # opt-in: include recent git diffs in the prompt
+    }
+
+    scrubber {
+      extraPatterns = []                 # extra PII regexes (default rules always run)
+    }
+
+    report {
+      includeInHtml = true               # render heal events as badges
+    }
+  }
+}</code></pre>
+    <p>
+      Heal is <strong>build-complete but production-gated</strong>:
+      <code>HealPipeline.attempt()</code> works end-to-end via the
+      <code>MockAdapter</code>, but the engine-side hook into
+      <code>PlaywrightRunner</code> action sites (Phase 3.6b) lands only
+      after <code>@pgwen/fix</code> has been validated in production with
+      a measured FP rate below 2% (strategy §13.4).
+    </p>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#file-layout">File layout</a></li>
+      <li><a href="#layering">Config layering</a></li>
+      <li><a href="#core">Core settings</a></li>
+      <li><a href="#launch-options">Launch options</a></li>
+      <li><a href="#behaviour">Behaviour rules</a></li>
+      <li><a href="#failfast">Failfast</a></li>
+      <li><a href="#state">State scope</a></li>
+      <li><a href="#autotrim">Data feed autoTrim</a></li>
+      <li><a href="#masking">Masking</a></li>
+      <li><a href="#w3c-capabilities">W3C capabilities</a></li>
+      <li><a href="#remote">Remote browsers</a></li>
+      <li><a href="#reports">Reports</a></li>
+      <li><a href="#diagnose">Diagnose &amp; telemetry</a></li>
+      <li><a href="#fix">@pgwen/fix</a></li>
+      <li><a href="#heal">Runtime self-heal</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

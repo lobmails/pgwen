@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="reports">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Reference / Reports</div>
+    <h1>Reports</h1>
+    <p>Every run produces four report formats by default, written under <code>${pgwen.outDir}/reports/</code>. The HTML report streams per-feature, so partial output is visible immediately after each feature completes.</p>
+
+    <h2 id="formats">Formats <a href="#formats" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Format</th><th>Output</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>HTML</td><td><code>reports/html/index.html</code> + per-feature pages</td><td>Human-readable run report with attachments and screenshots.</td></tr>
+        <tr><td>JUnit XML</td><td><code>reports/junit/TEST-*.xml</code></td><td>For CI dashboards (Jenkins, Azure Pipelines).</td></tr>
+        <tr><td>JSON</td><td><code>reports/json/results.json</code></td><td>Machine-readable run summary.</td></tr>
+        <tr><td>CSV</td><td><code>reports/csv/results.csv</code></td><td>Flat row-per-scenario summary.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="html-report">HTML report <a href="#html-report" class="anchor">#</a></h2>
+    <p>The HTML report includes:</p>
+    <ul>
+      <li>An index page summarising every feature with pass/fail status, duration, and a link</li>
+      <li>Per-feature pages with collapsible scenario/step trees</li>
+      <li>Parameters and Attachments dropdowns on the outer step row (see below)</li>
+      <li>Failed-step attachments dropdown (screenshot, error message, page HTML, PDF text capture if relevant)</li>
+      <li>A <a href="#failure-class">coloured failure-class badge</a> on each failed step</li>
+      <li>Inline data feed records for data-driven scenarios</li>
+      <li>Step de-duplication when <code>pgwen.web.capture.screenshots.duplicates = false</code></li>
+    </ul>
+
+    <h3 id="failure-class">Failure-class badge <a href="#failure-class" class="anchor">#</a></h3>
+    <p>
+      Every failed step is annotated with a rule-based failure class. The label appears
+      inside the red error panel, formatted as
+      <code>&lt;CLASS&gt; · &lt;confidence&gt;</code>. Hover the badge to see the
+      signals that fired.
+    </p>
+    <table>
+      <thead><tr><th>Class</th><th>Bootstrap label</th><th>Typical signals</th></tr></thead>
+      <tbody>
+        <tr><td><code>LOCATOR_NOT_FOUND</code></td><td><span style="background:#f0ad4e;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-warning</span></td><td><code>TimeoutError</code> + <code>locator.click/fill/…</code> in the error</td></tr>
+        <tr><td><code>ASSERTION_FAILED</code></td><td><span style="background:#d9534f;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-danger</span></td><td><code>DslAssertionError</code> OR handlerCategory=assertion</td></tr>
+        <tr><td><code>TIMEOUT</code></td><td><span style="background:#5bc0de;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-info</span></td><td><code>TimeoutError</code> on a non-locator wait</td></tr>
+        <tr><td><code>AUTH_FAILURE</code></td><td><span style="background:#f0ad4e;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-warning</span></td><td>HTTP 401/403, login-flavoured URL, "invalid credentials" text</td></tr>
+        <tr><td><code>NAVIGATION_FAILURE</code></td><td><span style="background:#d9534f;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-danger</span></td><td><code>page.goto</code> + <code>net::ERR_*</code> or HTTP 5xx</td></tr>
+        <tr><td><code>UNKNOWN</code></td><td><span style="background:#777;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-default</span></td><td>fallthrough — AI diagnose adds value</td></tr>
+      </tbody>
+    </table>
+    <p>The same field is emitted on each failed step in <code>results.json</code> as <code>failureClass: { class, confidence, signals }</code>, ready for <a href="diagnose.html">pgwen diagnose</a> to consume.</p>
+
+    <h3 id="sibling-rate">Sibling-success-rate chip <a href="#sibling-rate" class="anchor">#</a></h3>
+    <p>
+      When the classifier reclassifies an <code>ASSERTION_FAILED</code> step
+      to <code>LOCATOR_NOT_FOUND</code> via its locator-ancestor lookup,
+      it records how often the same binding name succeeded in sibling
+      scenarios. The HTML report surfaces this as a coloured chip next
+      to the failure-class badge:
+    </p>
+    <table>
+      <thead><tr><th>Rate</th><th>Chip colour</th><th>What it tells you</th></tr></thead>
+      <tbody>
+        <tr><td><code>≥ 0.8</code></td><td><span style="background:#5cb85c;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-success</span></td><td>Binding mostly works — likely an environmental or app-side issue, NOT a selector drift.</td></tr>
+        <tr><td><code>0.3 – 0.8</code></td><td><span style="background:#f0ad4e;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-warning</span></td><td>Mixed sibling success — manual review recommended.</td></tr>
+        <tr><td><code>&lt; 0.3</code></td><td><span style="background:#d9534f;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.8em;">label-danger</span></td><td>Binding broadly broken — probable selector drift.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Hovering the chip reveals the underlying ratio (<code>N/M</code>) and
+      the interpretation hint. Absent when the underlying signal isn't
+      recorded (single-scenario runs, non-locator failures, older runs).
+    </p>
+
+    <h3 id="pgwen-fix-chip">@pgwen/fix suggestions chip <a href="#pgwen-fix-chip" class="anchor">#</a></h3>
+    <p>
+      When a sibling <code>pgwen-fix/suggestions/*.json</code> directory
+      exists next to the report, the index page renders a footer chip:
+    </p>
+    <pre><code>┌──────────────────────────────────────────────────────────────┐
+│  [pgwen-fix]  3 suggestions available · open pgwen-fix report │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+    <p>
+      The chip links to <code>pgwen-fix/index.html</code> (or
+      <code>../pgwen-fix/index.html</code> when the main report is in a
+      <code>html/</code> subdirectory). Chip is omitted when no
+      suggestions exist — the main report stays unchanged.
+    </p>
+
+    <h3 id="parameters-attachments">Parameters and Attachments <a href="#parameters-attachments" class="anchor">#</a></h3>
+    <p>Steps that expand to a StepDef render two dropdowns on the outer collapsible row:</p>
+    <ul>
+      <li><strong>Parameters</strong> — caller-supplied parameter bindings (e.g. <code>name : Statements</code> for <code>I open the "Statements" tab</code>) and row context for <code>@Examples</code> iterations.</li>
+      <li><strong>Attachments</strong> — every scope binding captured during the step's execution, including bindings made by nested StepDef steps. Each link opens the captured value in a new tab.</li>
+    </ul>
+    <p>Attachment file names follow <code>&lt;seq&gt;-&lt;name&gt;-&lt;nameHash&gt;-&lt;contentHash&gt;.txt</code>. The two hashes are 64-bit FNV-1a of the binding name and value, so a binding aggregated up the StepDef tree appears under one physical file referenced from both parent and child dropdowns.</p>
+
+    <h3 id="formatted-text">Formatted-text attachments <a href="#formatted-text" class="anchor">#</a></h3>
+    <p>
+      Steps that produce a formatted value (typically <code>@DateTime</code>
+      or <code>@Number</code> format steps, or the bare
+      <code>is the current date formatted as "&lt;fmt&gt;"</code> form)
+      surface the formatted output as an Attachments entry on the step
+      that wrote it. The value is captured automatically via the
+      Compositor's scope-write buffer — project authors don't need to do
+      anything extra. Example step + resulting attachment:
+    </p>
+    <pre><code>And the raw date is "20260629"
+And @DateTime I format the raw date from "yyyyMMdd" to "dd-MM-yyyy" as the iso date
+
+→ Attachments dropdown on the @DateTime step:
+    the iso date : "29-06-2026"
+    the raw date : "20260629"</code></pre>
+
+    <h2 id="results-csv">Results CSVs <a href="#results-csv" class="anchor">#</a></h2>
+    <p>Custom flat CSVs for project-specific outcome reporting. Configure under <code>pgwen.report.results</code>:</p>
+    <pre><code>pgwen.report.results {
+  fields {
+    body = [
+      { field = "STATUS", ref = "pgwen.feature.eval.status.keyword.upperCased" }
+      { field = "ORDER_ID" }
+      # Sort the output by DURATION_MS ascending at end of run.
+      { field = "DURATION_MS", ref = "pgwen.feature.eval.duration.msecs", sort = "ascending" }
+    ]
+    reason = [
+      { field = "FAILED_REASON", ref = "pgwen.feature.eval.status.message" }
+    ]
+  }
+  files {
+    passed { file = "${pgwen.outDir}/results-PASSED.csv"; scope = "Feature"; status = "Passed"; fields = [ ${pgwen.report.results.fields.body} ] }
+    failed { file = "${pgwen.outDir}/results-FAILED.csv"; scope = "Feature"; status = "Failed"; fields = [ ${pgwen.report.results.fields.body} ${pgwen.report.results.fields.reason} ] }
+    all    { file = "${pgwen.outDir}/results-ALL.csv";    scope = "Feature";                  fields = [ ${pgwen.report.results.fields.body} ${pgwen.report.results.fields.reason} ] }
+  }
+}</code></pre>
+
+    <h3 id="csv-sort">Sort by column <a href="#csv-sort" class="anchor">#</a></h3>
+    <p>
+      Any field can declare <code>sort = "ascending"</code> or
+      <code>sort = "descending"</code>. At end-of-run, each output file
+      is re-read and the data rows are sorted by that column (header
+      preserved). Sort semantics:
+    </p>
+    <ul>
+      <li><strong>Numeric</strong> when EVERY data-row value in the sort
+        column parses as a finite Number — so <code>"10"</code> sorts
+        AFTER <code>"9"</code>, not before. Matches the reference framework
+        <code>ResultFile.scala</code>.</li>
+      <li><strong>Lexicographic</strong> otherwise (string
+        <code>localeCompare</code>).</li>
+      <li>At most one sort field per output file. Two or more is a
+        construction-time error (the reference framework <code>multipleSortFieldsError</code>).</li>
+    </ul>
+
+    <h2 id="named-results">Named results <a href="#named-results" class="anchor">#</a></h2>
+    <p>Use <code>@Results('name')</code> to route a scenario's outcome to a specific named file declared under <code>pgwen.report.results.files.&lt;name&gt;</code>. The default (untagged) routes to the unnamed files in <code>pgwen.report.results.files</code>.</p>
+
+    <h2 id="implicit-bindings">Implicit bindings <a href="#implicit-bindings" class="anchor">#</a></h2>
+    <p>Reports can interpolate any scope binding — including the <code>pgwen.*</code> implicit values populated at runtime:</p>
+    <table>
+      <thead><tr><th>Binding</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>pgwen.feature.name</code> / <code>pgwen.scenario.name</code></td><td>Current feature/scenario name</td></tr>
+        <tr><td><code>pgwen.feature.eval.status.keyword</code></td><td><code>Passed</code> / <code>Failed</code> / <code>Pending</code></td></tr>
+        <tr><td><code>pgwen.feature.eval.status.keyword.upperCased</code></td><td><code>PASSED</code> / <code>FAILED</code></td></tr>
+        <tr><td><code>pgwen.feature.eval.duration.secs</code></td><td>Elapsed seconds for the feature</td></tr>
+        <tr><td><code>pgwen.feature.eval.status.message</code></td><td>Error message on failure</td></tr>
+        <tr><td><code>pgwen.feature.eval.sequenceNo</code></td><td>1-based feature index within the run</td></tr>
+        <tr><td><code>pgwen.now</code> / <code>pgwen.now:&lt;format&gt;</code></td><td>Current ISO timestamp; <code>:yyyy-MM-dd</code> etc.</td></tr>
+        <tr><td><code>pgwen.downloadDir</code></td><td>Browser download directory for this context</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="suppress">Suppressing meta pages <a href="#suppress" class="anchor">#</a></h2>
+    <p><code>pgwen.report.suppress.meta = true</code> (default) hides StepDef-only meta features from the HTML index — useful when shared meta libraries are larger than the feature surface itself.</p>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#formats">Formats</a></li>
+      <li><a href="#html-report">HTML report</a></li>
+      <li><a href="#parameters-attachments">Parameters &amp; Attachments</a></li>
+      <li><a href="#results-csv">Results CSVs</a></li>
+      <li><a href="#named-results">Named results</a></li>
+      <li><a href="#implicit-bindings">Implicit bindings</a></li>
+      <li><a href="#suppress">Suppressing meta</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnose — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="diagnose">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Diagnose &amp; AI / Diagnose CLI</div>
+    <h1><code>pgwen diagnose</code></h1>
+
+    <p>
+      Every failed step is automatically tagged with a rule-based failure class
+      (<code>LOCATOR_NOT_FOUND</code>, <code>ASSERTION_FAILED</code>, <code>TIMEOUT</code>,
+      <code>AUTH_FAILURE</code>, <code>NAVIGATION_FAILURE</code>, <code>UNKNOWN</code>) —
+      visible as a coloured badge in the HTML report's error panel and as
+      <code>failureClass</code> in <code>results.json</code>. The
+      <code>pgwen diagnose</code> CLI builds on that signal to give the on-call dev
+      something concrete to read at 2am.
+    </p>
+
+    <h2 id="modes">Four modes <a href="#modes" class="anchor">#</a></h2>
+    <p>The mode is decided by the flag you pass (or by absence of a flag).</p>
+
+    <table>
+      <thead><tr><th>Flag</th><th>What it does</th><th>Reads</th><th>Network?</th></tr></thead>
+      <tbody>
+        <tr><td><code>--rules-only</code></td><td>Per-failure rule-based report</td><td><code>results.json</code></td><td>No</td></tr>
+        <tr><td>(none)</td><td>Per-failure Claude-backed report</td><td><code>results.json</code> + <code>pgwen.conf</code></td><td>Yes (gated)</td></tr>
+        <tr><td><code>--report</code></td><td>Aggregate telemetry analysis</td><td><code>diagnosis-history/</code> + <code>diagnosis-cache/</code></td><td>No</td></tr>
+        <tr><td><code>--annotate</code></td><td>Interactive review of history</td><td><code>diagnosis-history/</code></td><td>No</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      AI mode falls back to <code>--rules-only</code> output <em>with a notice</em>
+      whenever any gate fails — disabled in config, kill-switch env set, no API key, no
+      <code>pgwen.conf</code> in the working dir. The CLI never produces an empty
+      report and never silently calls Claude.
+    </p>
+
+    <p>
+      AI mode <strong>groups failures by pattern</strong> before calling Claude
+      — a single broken locator that fired in 500 scenarios costs one Claude
+      call, not 500. The diagnosis is fanned out to every member of the group,
+      and the per-entry <code>instances</code> list carries the full blast radius
+      downstream to <a href="#pgwen-fix"><code>pgwen-fix</code></a>. See
+      <a href="#pattern-grouping">Pattern-level grouping</a> below.
+    </p>
+
+    <h2 id="rules-only">Rules-only mode <a href="#rules-only" class="anchor">#</a></h2>
+
+    <p>
+      Free, offline, no setup. Useful as a smoke check after any run that produced
+      failures.
+    </p>
+
+    <pre><code>$ pgwen diagnose --rules-only --input pgwen/output/results.json</code></pre>
+
+    <p>Sample output (abbreviated):</p>
+
+    <pre><code># pgwen diagnose — rules-only
+
+Source: `pgwen -p Login -b` · 2026-06-15T10:00:00.000Z
+
+## Summary
+
+| Class | Count |
+|---|---|
+| LOCATOR_NOT_FOUND | 2 |
+| ASSERTION_FAILED | 1 |
+
+## LOCATOR_NOT_FOUND (2)
+
+- **Valid credentials** — `features/Login.feature`
+  - Step: `When I click the submit button`
+  - Error: locator.click: Timeout 5000ms exceeded
+  - Confidence: high
+  - Signals: errorClass=TimeoutError; handlerCategory=locator-action
+
+- **Forgotten password** — `features/Login.feature`
+  - Step: `When I click the reset link`
+  - Error: locator.click: Timeout 5000ms exceeded
+  - Confidence: high
+  - Signals: errorClass=TimeoutError; handlerCategory=locator-action</code></pre>
+
+    <h2 id="ai">AI-assisted mode <a href="#ai" class="anchor">#</a></h2>
+
+    <p>
+      Opt in by setting <code>pgwen.diagnose.ai.enabled = true</code> in <code>pgwen.conf</code>
+      and exposing an Anthropic API key. Then run <code>pgwen diagnose</code> with no
+      flag.
+    </p>
+
+    <h3 id="ai-setup">Minimum setup <a href="#ai-setup" class="anchor">#</a></h3>
+
+    <p>The project's <code>pgwen.conf</code> needs at least the enable flag:</p>
+
+    <pre><code>pgwen.diagnose.ai {
+  enabled = true
+}</code></pre>
+
+    <p>The API key comes from one of three places (highest precedence first):</p>
+
+    <ol>
+      <li>An <strong>environment variable</strong> (default name <code>ANTHROPIC_API_KEY</code>; rename via <code>pgwen.diagnose.ai.api.keyEnv</code>).</li>
+      <li>A <code>pgwen.conf</code> entry, <strong>required</strong> to use the <code>:masked</code> suffix so the value is redacted in logs.</li>
+      <li>A programmatic override (used by tests and external secret stores).</li>
+    </ol>
+
+    <p>Recommended layout — key in env, never on disk:</p>
+
+    <pre><code># in your shell or CI secret
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# in pgwen.conf
+pgwen.diagnose.ai {
+  enabled = true
+}</code></pre>
+
+    <p>If the env path isn't available, the config fallback:</p>
+
+    <pre><code>pgwen.diagnose.ai {
+  enabled = true
+  api {
+    "key:masked" = "sk-ant-..."   # `:masked` is REQUIRED — pgwen warns otherwise
+  }
+}</code></pre>
+
+    <div class="callout" style="border-left:4px solid #f0ad4e; padding:10px 14px; margin:14px 0; background:#fff8e6;">
+      <strong>What <code>:masked</code> protects (and what it doesn't).</strong>
+      The suffix flags a value as sensitive: pgwen replaces it with <code>*****</code>
+      wherever the <code>StringInterpolator</code> renders for display (logs,
+      HTML report, console output) and <code>pgwen diagnose</code> reports the key
+      as a fingerprint like <code>config:sk-...3f2a</code>, never the full value.
+      However, <strong>the value is still stored verbatim in <code>pgwen.conf</code></strong>
+      — <code>:masked</code> is not encryption. Anyone with read access to the
+      file reads the key. Source-control commits expose it forever. For any
+      production secret, <strong>use the env-var path</strong> (the recommended
+      layout above) so the key never lands on disk.
+    </div>
+
+    <h3 id="ai-flags">AI-mode flags <a href="#ai-flags" class="anchor">#</a></h3>
+
+    <table>
+      <thead><tr><th>Flag</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>--no-cache</code></td><td>Bypass the response cache for this run (still saves to cache).</td></tr>
+        <tr><td><code>--dry-run</code></td><td>Estimate per-failure cost; no AI call is made.</td></tr>
+        <tr><td><code>--config &lt;path&gt;</code></td><td>Use a non-default <code>pgwen.conf</code> path.</td></tr>
+        <tr><td><code>--output &lt;dir&gt;</code></td><td>Output directory (default <code>pgwen/output</code>).</td></tr>
+        <tr><td><code>--json-out &lt;path&gt;</code></td><td>In addition to the Markdown sent to stdout, persist a structured JSON array of <code>{failure, classification, output, instances}</code> entries to <code>&lt;path&gt;</code>. This is the input format consumed by <a href="#pgwen-fix"><code>pgwen-fix</code></a> in suggest-only mode.</td></tr>
+        <tr><td><code>--no-pattern-grouping</code></td><td>Escape hatch — disable failure-pattern grouping and call the AI once per failure instead of once per locator. Use only when you suspect the grouper is over-merging unrelated failures.</td></tr>
+        <tr><td><code>--provider &lt;name&gt;</code></td><td>Choose the AI provider for this run. One of <code>claude</code> (default), <code>openai</code>, <code>azure-openai</code>, <code>copilot</code>. Overrides <code>pgwen.diagnose.ai.provider</code> in config. See <a href="#providers">Providers</a> below for env vars + extras each one needs.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="providers">AI providers <a href="#providers" class="anchor">#</a></h3>
+    <p>
+      Both <code>pgwen diagnose</code> and <code>pgwen new</code> route through
+      a common adapter layer. Selection precedence: <code>--provider</code> flag
+      (or <code>PGWEN_AI_PROVIDER</code> env for <code>pgwen new</code>), then
+      <code>pgwen.diagnose.ai.provider</code> config, then default
+      <code>claude</code>. Each provider needs its own API-key env var:
+    </p>
+    <table>
+      <thead><tr><th>Provider</th><th>Key env var</th><th>Default model</th><th>Extras</th></tr></thead>
+      <tbody>
+        <tr><td><code>claude</code> (default)</td><td><code>ANTHROPIC_API_KEY</code></td><td><code>claude-sonnet-4-6</code></td><td>—</td></tr>
+        <tr><td><code>openai</code></td><td><code>OPENAI_API_KEY</code></td><td><code>gpt-4o-2024-08-06</code></td><td>—</td></tr>
+        <tr><td><code>azure-openai</code></td><td><code>AZURE_OPENAI_API_KEY</code></td><td>(deployment-defined)</td><td>Requires <code>pgwen.diagnose.ai.azureOpenai.deployment</code> + <code>apiVersion</code> + (<code>resource</code> or <code>baseUrl</code>).</td></tr>
+        <tr><td><code>copilot</code></td><td><code>GITHUB_TOKEN</code></td><td><code>gpt-4o</code></td><td>Adapter exchanges the GitHub PAT for a short-lived Copilot bearer (~25 min, auto-refreshed). Copilot's chat API is OpenAI-compatible.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Model override per provider: <code>pgwen.diagnose.ai.openai.model</code>,
+      <code>.azureOpenai.model</code>, <code>.copilot.model</code>, etc.
+      Pricing for each provider's models lives in <code>BudgetGate</code>'s
+      <code>DEFAULT_PRICING</code> table — see
+      <a href="settings.html#diagnose-ai">Settings → AI-assisted diagnose</a>
+      for the full list.
+    </p>
+
+    <h3 id="ai-sample">Sample AI-mode output <a href="#ai-sample" class="anchor">#</a></h3>
+
+    <pre><code># pgwen diagnose — AI-assisted
+
+Source: `pgwen -p Login -b` · 2026-06-15T10:00:00.000Z
+API key: env:sk-...3f2a
+
+## Summary
+
+| Outcome | Count |
+|---|---|
+| cache hits | 0 |
+| fresh calls | 1 |
+| skipped | 0 |
+
+Total actual cost: **$0.0271**
+
+## Valid credentials  _(pattern affects 3 instances)_
+
+- Feature: `features/Login.feature`
+- Step: `When I click the submit button`
+- Error: locator.click: Timeout 5000ms exceeded
+- Prior class: `LOCATOR_NOT_FOUND` (high)
+- AI source: `fresh` · model `claude-sonnet-4-6`
+- Actual cost: $0.0271
+- Other instances:
+  - `features/Login.feature` — _Forgotten password_
+  - `features/Account.feature` — _Edit profile_
+
+**locator_drift** · confidence **high**
+
+The selector `#login-submit` no longer matches any element. The DOM excerpt
+shows a button with id `login-go` that appears to be the same target.
+Sibling scenarios passed, so the app is otherwise healthy.
+
+Evidence:
+- pgwen/meta/Login.meta:12 expects id 'login-submit'
+- DOM excerpt contains &lt;button id='login-go'&gt;
+- Sibling 'Invalid credentials' passed
+
+Proposed fix:
+```
+- submit button can be located by id "login-submit"
++ submit button can be located by id "login-go"
+(pgwen/meta/Login.meta:12)
+```</code></pre>
+
+    <h3 id="pattern-grouping">Pattern-level grouping <a href="#pattern-grouping" class="anchor">#</a></h3>
+
+    <p>
+      Default behaviour in AI mode: failures are grouped by a conservative
+      fingerprint <strong>before</strong> the AI pipeline runs. Two failures
+      share a group when they share <em>all four</em> of:
+    </p>
+
+    <ul>
+      <li>Rule-based classification class (e.g. <code>LOCATOR_NOT_FOUND</code>);</li>
+      <li>Locator binding <code>file:line</code> (resolved via <code>LocatorIndex</code>);</li>
+      <li>Selector strategy (<code>id</code>, <code>css</code>, etc.);</li>
+      <li>Selector value.</li>
+    </ul>
+
+    <p>
+      One representative per group goes to Claude on behalf of all members
+      (lex-smallest by feature file / scenario name / step text — stable across
+      reruns so the response cache stays effective). The resulting
+      <code>DiagnoseOutput</code> is fanned out to every group instance.
+    </p>
+
+    <p>
+      When the locator binding cannot be resolved for a given failure
+      (no <code>LocatorIndex</code> match), the fingerprint falls back to a
+      per-failure unique key — i.e. no grouping. This is intentional: we
+      never merge across patterns we cannot precisely identify.
+    </p>
+
+    <p>
+      Reach for <code>--no-pattern-grouping</code> when you genuinely want
+      one Claude call per failure (e.g. a research run measuring per-instance
+      variance). Costs scale linearly with failure count in that mode.
+    </p>
+
+    <h3 id="json-out">Persisting structured output for <code>pgwen-fix</code> <a href="#json-out" class="anchor">#</a></h3>
+
+    <p>
+      Pass <code>--json-out &lt;path&gt;</code> to write a <code>FixInputEntry[]</code>
+      array alongside the Markdown stdout. The shape is a stable contract with
+      <code>@pgwen/fix</code> (mirrored in
+      <code>pgwen-fix/src/types.ts</code>):
+    </p>
+
+    <pre><code>[
+  {
+    "failure": {
+      "feature_file": "pgwen/features/Login.feature",
+      "feature_name": "Login",
+      "scenario_name": "Valid credentials",
+      "step_keyword": "When",
+      "step_text": "I click the submit button",
+      "error_class": "TimeoutError",
+      "error_message": "locator.click: Timeout 5000ms exceeded"
+    },
+    "classification": {
+      "class": "LOCATOR_NOT_FOUND",
+      "confidence": "high",
+      "signals": ["errorClass=TimeoutError", "handlerCategory=locator-action"]
+    },
+    "instances": [
+      { "feature_file": "pgwen/features/Login.feature",   "feature_name": "Login",   "scenario_name": "Valid credentials",   "step_text": "I click the submit button" },
+      { "feature_file": "pgwen/features/Login.feature",   "feature_name": "Login",   "scenario_name": "Forgotten password",  "step_text": "I click the reset link"    },
+      { "feature_file": "pgwen/features/Account.feature", "feature_name": "Account", "scenario_name": "Edit profile",        "step_text": "I click the submit button" }
+    ],
+    "output": {
+      "category": "locator_drift",
+      "confidence": "high",
+      "human_explanation": "...",
+      "machine_proposal": {
+        "binding_name": "submit button",
+        "file": "pgwen/meta/Login.meta",
+        "line": 12,
+        "old": "submit button can be located by id \"login-submit\"",
+        "new": "submit button can be located by id \"login-go\"",
+        "original_selector_match_count_in_dom": 0
+      },
+      "auto_fix_safe": true,
+      "...": "..."
+    }
+  }
+]</code></pre>
+
+    <h3 id="pgwen-fix">Suggest-only fixes via <code>@pgwen/fix</code> <a href="#pgwen-fix" class="anchor">#</a></h3>
+
+    <p>
+      <code>pgwen diagnose</code> never writes patches itself. The companion
+      peer-package <a href="diagnose.html#pgwen-fix"><code>@pgwen/fix</code></a>
+      consumes the <code>--json-out</code> file and, for every Claude
+      proposal that passes its safety gates, writes:
+    </p>
+
+    <ul>
+      <li>a structured <code>suggestion.json</code> capturing the change + its blast radius (<code>affected_instances</code>);</li>
+      <li>a <code>suggestion.patch</code> applyable with <code>patch -p1</code>;</li>
+      <li>a self-contained <code>reports/pgwen-fix/index.html</code> that mirrors the core pgwen look-and-feel.</li>
+    </ul>
+
+    <p>End-to-end pipeline:</p>
+
+    <pre><code>$ yarn pgwen                                                  # produces results.json
+$ yarn pgwen diagnose --input r.json --json-out out.json      # Markdown + JSON
+$ npx @pgwen/fix --input out.json                             # writes reports/pgwen-fix/
+</code></pre>
+
+    <p>
+      Suggest-only mode never touches source files or branches; the operator
+      reviews each card in the HTML report and applies (or rejects) by hand.
+      The branch / PR auto-apply mode in <code>@pgwen/fix</code> remains a
+      §14 skeleton — gated on the strategy-doc governance answers in
+      <code>pgwen-ai-fix-governance-questions.md</code>.
+    </p>
+
+    <h3 id="ai-gates">Hard gates &amp; kill switches <a href="#ai-gates" class="anchor">#</a></h3>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Effect when triggered</th></tr></thead>
+      <tbody>
+        <tr><td><code>PGWEN_AI_DISABLED=1</code></td><td>Master kill switch. Short-circuits all diagnose-track writes.</td></tr>
+        <tr><td><code>pgwen.diagnose.ai.enabled = false</code></td><td>Falls back to <code>--rules-only</code> with notice.</td></tr>
+        <tr><td>Per-run / per-day budget cap (USD)</td><td>Per-failure skipped with reason <code>per-run cap exceeded</code>.</td></tr>
+        <tr><td>Rate limit (default 30 calls / 5 min)</td><td>Per-failure skipped with reason <code>rate-limited</code>.</td></tr>
+        <tr><td>Cache hit (default 7-day TTL)</td><td>Per-failure served from cache; no Claude call.</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      See <a href="settings.html#diagnose-ai">Settings → AI-assisted diagnose</a> for
+      every knob.
+    </p>
+
+    <h2 id="annotate">Annotation workflow <a href="#annotate" class="anchor">#</a></h2>
+
+    <p>
+      The classifier's false-positive rate is the gate the strategy doc names for
+      shipping auto-patching (<code>@pgwen/fix</code>) — the threshold is &lt; 2%. To
+      compute it, reviewers tag each historic failure with what the human actually did
+      and whether the classifier was right. <code>pgwen diagnose --annotate</code>
+      walks unannotated entries and prompts for both:
+    </p>
+
+    <pre><code>$ pgwen diagnose --annotate
+Scanning pgwen/output/reports/diagnosis-history/
+  3 already annotated · 12 pending review
+
+[1/12] Login__Valid-credentials__2026-06-15T10-00-00-000Z.json
+  Feature:    Login  (features/Login.feature)
+  Scenario:   Valid credentials
+  Step:       When I click the submit button
+  Error:      locator.click: Timeout 5000ms exceeded
+  Classifier: LOCATOR_NOT_FOUND (high)
+  Signals:    errorClass=TimeoutError; handlerCategory=locator-action
+
+  Human action? [l]ocator / [a]pp / [n]o action / [o]ther / [s]kip / [q]uit: l
+  Outcome? [t]rue positive / [f]alse positive / [a]cceptable / [s]kip / [q]uit: t
+  Saved: human_action=fixed_locator outcome=true_positive</code></pre>
+
+    <p>Use <code>--limit N</code> to cap the session length. Existing annotations are preserved across runs — only entries without an <code>outcome</code> field are surfaced.</p>
+
+    <p>Key mappings:</p>
+
+    <table>
+      <thead><tr><th>Key</th><th>Maps to</th></tr></thead>
+      <tbody>
+        <tr><td><code>l</code></td><td><code>human_action = "fixed_locator"</code></td></tr>
+        <tr><td><code>a</code></td><td><code>human_action = "fixed_app"</code></td></tr>
+        <tr><td><code>n</code></td><td><code>human_action = "no_action"</code></td></tr>
+        <tr><td><code>o</code></td><td><code>human_action = "other"</code></td></tr>
+        <tr><td><code>t</code></td><td><code>outcome = "true_positive"</code></td></tr>
+        <tr><td><code>f</code></td><td><code>outcome = "false_positive"</code></td></tr>
+        <tr><td><code>a</code> (outcome prompt)</td><td><code>outcome = "acceptable"</code></td></tr>
+        <tr><td><code>s</code></td><td>Skip this entry.</td></tr>
+        <tr><td><code>q</code></td><td>Quit early.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="report">Telemetry report <a href="#report" class="anchor">#</a></h2>
+
+    <p>
+      Once entries are accumulating (annotated or not), <code>pgwen diagnose --report</code>
+      produces a Markdown summary that doesn't depend on <code>results.json</code> — it
+      reads only the sidecars under <code>&lt;output&gt;/reports/diagnosis-history/</code>
+      and <code>&lt;output&gt;/reports/diagnosis-cache/</code>.
+    </p>
+
+    <pre><code>$ pgwen diagnose --report --output pgwen/output</code></pre>
+
+    <p>Sample output (abbreviated):</p>
+
+    <pre><code># pgwen diagnose — telemetry analysis
+
+Generated: 2026-06-15T11:00:00.000Z
+History: `pgwen/output/reports/diagnosis-history`
+Cache: `pgwen/output/reports/diagnosis-cache`
+
+## Rule-based classifier
+
+Total failure entries: **47**
+
+| Class | Count |
+|---|---|
+| LOCATOR_NOT_FOUND | 28 |
+| ASSERTION_FAILED | 11 |
+| TIMEOUT | 5 |
+| UNKNOWN | 3 |
+
+### Class × confidence
+
+| Class | high | medium | low |
+|---|---|---|---|
+| ASSERTION_FAILED | 11 | 0 | 0 |
+| LOCATOR_NOT_FOUND | 26 | 2 | 0 |
+| TIMEOUT | 5 | 0 | 0 |
+| UNKNOWN | 0 | 0 | 3 |
+
+## Annotated outcomes
+
+Annotated: **22** / 47
+
+| Outcome | Count |
+|---|---|
+| true_positive | 19 |
+| false_positive | 2 |
+| acceptable | 1 |
+
+False-positive rate: **9.52%** (target: &lt; 2% before `@pgwen/fix` can ship)
+
+## Claude AI calls
+
+Unique cached diagnoses: **18** · Input tokens: **108,432** · Output tokens: **4,210**
+Machine proposals: **9** · auto_fix_safe=true: **6**</code></pre>
+
+    <h2 id="history-format">Sidecar file format <a href="#history-format" class="anchor">#</a></h2>
+
+    <p>
+      Each failed leaf step gets one JSON file under
+      <code>&lt;output&gt;/reports/diagnosis-history/</code> (opt-in via
+      <code>pgwen.diagnose.history.enabled = true</code>). Filename format:
+      <code>&lt;feature-slug&gt;__&lt;scenario-slug&gt;__&lt;isoStamp&gt;.json</code>.
+    </p>
+
+    <pre><code>{
+  "pgwen_version": "1.0.0",
+  "timestamp": "2026-06-15T10:00:00.000Z",
+  "feature_file": "features/Login.feature",
+  "feature_name": "Login",
+  "scenario_name": "Valid credentials",
+  "step_keyword": "When",
+  "step_text": "I click the submit button",
+  "error_class": "TimeoutError",
+  "error_message": "locator.click: Timeout 5000ms exceeded",
+  "classification": {
+    "class": "LOCATOR_NOT_FOUND",
+    "confidence": "high",
+    "signals": ["errorClass=TimeoutError", "handlerCategory=locator-action"]
+  },
+  "human_action": "fixed_locator",   // ← filled in by --annotate
+  "outcome": "true_positive"         // ← filled in by --annotate
+}</code></pre>
+
+    <p>
+      External tooling can populate <code>human_action</code> + <code>outcome</code>
+      directly (a git-log heuristic, an annotation web app, etc.) — pgwen's analysis
+      layer accepts whatever wrote the file as long as the schema matches.
+    </p>
+
+    <h2 id="next">Next <a href="#next" class="anchor">#</a></h2>
+    <ul>
+      <li><a href="ai-pipeline.html">AI pipeline architecture</a> — flow diagram, cost levers, privacy, bundle enrichment.</li>
+      <li><a href="settings.html#diagnose-ai">Settings reference</a> — every <code>pgwen.diagnose.ai.*</code> knob.</li>
+    </ul>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#modes">Four modes</a></li>
+      <li><a href="#rules-only">Rules-only</a></li>
+      <li><a href="#ai">AI mode</a></li>
+      <li><a href="#annotate">Annotation</a></li>
+      <li><a href="#report">Telemetry report</a></li>
+      <li><a href="#history-format">Sidecar format</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Diagnose</h4><ul><li><a href="diagnose.html">CLI usage</a></li><li><a href="ai-pipeline.html">AI pipeline</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

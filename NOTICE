@@ -1,0 +1,13 @@
+pgwen
+Copyright 2026 The pgwen authors
+
+This product includes software originally developed by Branko Juric and
+Brady Wood as part of the Gwen BDD framework (https://gweninterpreter.org),
+licensed under the Apache License, Version 2.0. See
+src/reporting/HtmlReporter.ts for the in-source attribution to the
+Gwen HTML report design that pgwen's HTML output was originally modelled on.
+
+Portions of the DSL surface (Gherkin step vocabulary, meta-file semantics,
+data-feed conventions, and the report layout) trace their design lineage
+to that original work; the TypeScript / Playwright implementation is
+independent.

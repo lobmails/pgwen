@@ -1,0 +1,68 @@
+{
+  "name": "@pgwen/core",
+  "version": "1.0.0-rc.1",
+  "description": "Standalone Playwright BDD framework — a Gherkin-driven TypeScript engine for test and process automation.",
+  "license": "Apache-2.0",
+  "author": "The pgwen authors",
+  "private": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "SECURITY.md",
+    ".env.example"
+  ],
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "pgwen": "./dist/cli/launcher.js",
+    "pgwen-fix": "./dist/fix/cli.js"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "prepublishOnly": "yarn build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:regression": "cd ../pgwen-regression && yarn install --frozen-lockfile && yarn pgwen",
+    "pgwen": "node dist/cli/launcher.js",
+    "pgwen:new": "node dist/cli/NewProject.js",
+    "typecheck": "tsc --noEmit",
+    "docs:serve": "cd docs && python3 -m http.server 8080"
+  },
+  "dependencies": {
+    "@cucumber/gherkin": "^28.0.0",
+    "@cucumber/messages": "^24.0.0",
+    "@xmldom/xmldom": "^0.9.9",
+    "papaparse": "^5.4.1",
+    "pdfjs-dist": "^5.7.284",
+    "xpath": "^0.0.34"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/papaparse": "^5.3.14",
+    "@vitest/coverage-v8": "^1.6.0",
+    "playwright": "^1.59.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "packageManager": "yarn@1.22.22",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

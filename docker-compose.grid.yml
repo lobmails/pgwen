@@ -1,0 +1,105 @@
+# pgwen docker-compose.grid.yml — Playwright Browser Server (Grid) mode
+#
+# Architecture (mirrors WebDriver-style grid Hub + Node, but Playwright-native):
+#
+#   browser-server  — Playwright Browser Server.
+#                     Exposes a stable WebSocket endpoint at ws://browser-server:3000/pgwen.
+#                     All browser processes run here; the pgwen container stays lean.
+#
+#   pgwen           — Test runner.
+#                     Connects to browser-server remotely via pgwen.web.remote.url.
+#                     No browser binaries are invoked inside this container.
+#
+# Usage:
+#   docker compose -f docker-compose.grid.yml up --abort-on-container-exit
+#
+# Required pgwen.conf change (add to the project's pgwen.conf or profile conf):
+#
+#   pgwen {
+#     web {
+#       remote.url = ${?PGWEN_REMOTE_URL}   # injected by Compose; override in your CI pipeline if needed
+#     }
+#   }
+#
+# Environment variables (set by CI pipeline (Jenkins / Azure Pipelines / GitHub Actions) → docker compose):
+#
+#   PGWEN_ENV       test | prod              Target environment
+#   PROJECT_PROFILE    Example | …        Profile name passed as -p flag
+#   PGWEN_PARALLEL  true | false             Enable parallel feature execution
+#   PGWEN_VIDEO     true | false             Record video
+#   PGWEN_BROWSER   chromium|firefox|webkit  Browser engine (default: chromium)
+#   TZ             e.g. Australia/Sydney    Timezone for timestamps in reports
+#
+# Scaling browser nodes (run N parallel browser instances):
+#   docker compose -f docker-compose.grid.yml up --scale browser-server=4
+#   (combine with a load balancer or set maxWorkers in your run config)
+
+services:
+
+  browser-server:
+    image: mcr.microsoft.com/playwright:v1.59.1-noble
+    ports:
+      - "3000"                      # expose within the Compose network (no host binding needed)
+    environment:
+      - PGWEN_BROWSER=${PGWEN_BROWSER:-chromium}
+    # Launch a Playwright Browser Server on a fixed WebSocket path (/pgwen) so the
+    # pgwen runner can connect at the stable ws://browser-server:3000/pgwen URL.
+    # wsPath requires Playwright >= 1.30 (Dockerfile pins 1.59.1 — safe).
+    # --no-sandbox and --disable-dev-shm-usage are required inside Docker containers.
+    command: >
+      node -e "
+        const browser = process.env.PGWEN_BROWSER || 'chromium';
+        const { [browser]: bt } = require('playwright');
+        if (!bt) { console.error('Unknown browser:', browser); process.exit(1); }
+        bt.launchServer({
+          port: 3000,
+          host: '0.0.0.0',
+          wsPath: '/pgwen',
+          headless: true,
+          args: ['--no-sandbox', '--disable-dev-shm-usage']
+        }).then(server => {
+          process.stdout.write('Browser server ready: ' + server.wsEndpoint() + '\n');
+          process.stdin.resume();
+        }).catch(err => { console.error('Browser server failed to start:', err.message); process.exit(1); });
+      "
+    healthcheck:
+      # TCP-level check: port 3000 accepting connections means the server is ready.
+      test: >
+        node -e "
+          require('net')
+            .connect(3000, 'localhost')
+            .on('connect', () => process.exit(0))
+            .on('error',   () => process.exit(1));
+        "
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  pgwen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      browser-server:
+        condition: service_healthy
+    environment:
+      - PGWEN_ENV
+      - PROJECT_PROFILE
+      - PGWEN_PARALLEL
+      - PGWEN_VIDEO
+      - TZ
+      # PGWEN_REMOTE_URL points to the browser-server inside the Compose network.
+      # Consumed by pgwen.conf via ${?PGWEN_REMOTE_URL} → pgwen.web.remote.url.
+      - PGWEN_REMOTE_URL=ws://browser-server:3000/pgwen
+      # Credentials — add as needed:
+      # - APP_USERNAME
+      # - APP_PASSWORD
+    volumes:
+      - $PWD:/project
+    working_dir: /project
+    # -p $PROJECT_PROFILE loads pgwen/conf/profiles/$PROJECT_PROFILE.conf
+    # -b enables batch mode (non-interactive, exits with code 0/1)
+    command: >
+      bash -c "npm ci --ignore-scripts &&
+               node dist/cli/launcher.js -p $${PROJECT_PROFILE} -b"

@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "name": "app-regression",
+    "purpose": "Claude classifies as app_regression — the element vanished or the page no longer renders the expected control. No machine_proposal because the test isn't wrong; the app is.",
+    "matches_on": "prompt contains 'navigation failed' (from error_message in DiagnoseInput)"
+  },
+  "calls": [
+    {
+      "matchOn": { "containsInPrompt": "navigation failed" },
+      "response": {
+        "output": {
+          "category": "app_regression",
+          "confidence": "high",
+          "human_explanation": "Navigation to /accounts/<id> redirected to /maintenance — the app routes failing accounts to a maintenance page during the current deploy window. Test selector logic is correct; the application contract changed.",
+          "evidence": [
+            "Pre-failure DOM excerpt shows <h1>Maintenance in progress</h1>",
+            "URL after navigation: /maintenance?from=/accounts/A-EF949C67",
+            "Sibling scenarios with the same nav prefix all failed in this run — not isolated to one selector"
+          ],
+          "alternatives_considered": [
+            { "option": "Treat as locator_drift (selector wrong)", "rejected_because": "The selector never had a chance to evaluate — the page is the maintenance page, not the accounts page" },
+            { "option": "Treat as env (auth dropped)", "rejected_because": "No 401/403 — server returned 200 with a different layout" }
+          ],
+          "files_likely_involved": [
+            { "path": "features/account-details.feature", "role": "feature" }
+          ],
+          "escalation_signals": {
+            "prior_pgwen_fix_on_same_line": false,
+            "shared_meta_imported_by_multiple_features": true,
+            "failure_repeated_in_consecutive_runs": true
+          },
+          "machine_proposal": null,
+          "auto_fix_safe": false
+        },
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-app-regression-001",
+        "provider": "claude"
+      }
+    }
+  ]
+}

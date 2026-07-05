@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DSL reference — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="dsl">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Reference / DSL</div>
+    <h1>DSL reference</h1>
+    <p>
+      pgwen registers ~300 Gherkin step patterns. Steps are matched first-fit against
+      the registry; the first matching pattern handles the step. Locator names can be
+      any free-form noun phrase — the engine resolves them through the active scope.
+    </p>
+
+    <h2 id="navigation">Navigation <a href="#navigation" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Pattern</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>I navigate to "&lt;url&gt;"</code></td><td><code>I navigate to "https://todomvc.com/examples/react/"</code></td></tr>
+        <tr><td><code>I navigate to &lt;ref&gt;</code></td><td><code>I navigate to base url</code> (resolves from scope)</td></tr>
+        <tr><td><code>I refresh the current page</code> / <code>I refresh</code> / <code>I reload</code></td><td><code>I refresh</code></td></tr>
+        <tr><td><code>I navigate back</code> / <code>I go back</code></td><td><code>I navigate back</code></td></tr>
+        <tr><td><code>I navigate forward</code> / <code>I go forward</code></td><td><code>I navigate forward</code></td></tr>
+        <tr><td><code>I refresh the current page until &lt;el&gt; is displayed</code></td><td><code>I refresh the current page until the result is displayed</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout note">
+      <strong>Page-load strategy</strong>
+      Navigation steps honour <code>pgwen.web.capabilities.pageLoadStrategy</code> via
+      Playwright's <code>waitUntil</code>. See
+      <a href="settings.html#w3c-capabilities">W3C capabilities</a>.
+    </div>
+
+    <h2 id="locator-bindings">Locator bindings <a href="#locator-bindings" class="anchor">#</a></h2>
+    <p>Bind a friendly name to a selector once, then reference it by name in subsequent steps.</p>
+    <pre><code>Given the new-todo input can be located by class "new-todo"
+And   the todo count    can be located by class "todo-count"
+And   the items list    can be located by tag name "ul"</code></pre>
+
+    <table>
+      <thead><tr><th>Locator type</th><th>Resolves to</th></tr></thead>
+      <tbody>
+        <tr><td><code>id "submit"</code></td><td><code>[id="submit"]</code></td></tr>
+        <tr><td><code>name "username"</code></td><td><code>[name="username"]</code></td></tr>
+        <tr><td><code>class "error-msg"</code></td><td><code>.error-msg</code></td></tr>
+        <tr><td><code>css selector ".my-class &gt; span"</code> / <code>css "..."</code></td><td>direct CSS selector</td></tr>
+        <tr><td><code>xpath "//div[@class='foo']"</code></td><td>XPath selector</td></tr>
+        <tr><td><code>tag name "button"</code> / <code>tag "..."</code></td><td>tag selector</td></tr>
+        <tr><td><code>link text "Home"</code></td><td><code>a:text-is("Home")</code></td></tr>
+        <tr><td><code>partial link text "Hom"</code></td><td><code>a:text("Hom")</code></td></tr>
+        <tr><td><code>javascript "$('.foo:has(.bar)')"</code></td><td>jQuery-style → translated to Playwright selectors</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="actions">Element actions <a href="#actions" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Pattern</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>I click &lt;el&gt;</code></td><td><code>I click the add button</code></td></tr>
+        <tr><td><code>I double-click &lt;el&gt;</code></td><td><code>I double-click the todo item</code></td></tr>
+        <tr><td><code>I right-click &lt;el&gt;</code></td><td><code>I right-click the row</code></td></tr>
+        <tr><td><code>I &lt;modifiers&gt; click &lt;el&gt;</code></td><td><code>I CTRL+SHIFT click the link</code> · modifiers: CTRL, SHIFT, ALT, COMMAND, META</td></tr>
+        <tr><td><code>I enter "&lt;text&gt;" in &lt;el&gt;</code></td><td><code>I enter "First task" in the new-todo input</code></td></tr>
+        <tr><td><code>I type "&lt;text&gt;" in &lt;el&gt;</code></td><td>alias for <code>I enter</code></td></tr>
+        <tr><td><code>I append "&lt;text&gt;" to &lt;el&gt;</code></td><td>appends without clearing first</td></tr>
+        <tr><td><code>I clear &lt;el&gt;</code></td><td><code>I clear the search box</code></td></tr>
+        <tr><td><code>I press enter in &lt;el&gt;</code> / <code>I press tab in &lt;el&gt;</code></td><td>Enter / Tab key in a focused field</td></tr>
+        <tr><td><code>I send "&lt;keys&gt;" to &lt;el&gt;</code></td><td>arbitrary key sequence to an element</td></tr>
+        <tr><td><code>I move to &lt;el&gt;</code></td><td>Move pointer to element (hover-like)</td></tr>
+        <tr><td><code>I check &lt;el&gt;</code> / <code>I uncheck &lt;el&gt;</code></td><td><code>I check the toggle-all checkbox</code></td></tr>
+        <tr><td><code>I locate &lt;el&gt;</code></td><td>Resolve and focus the element without acting</td></tr>
+        <tr><td><code>I highlight &lt;el&gt;</code></td><td>Apply the configured highlight style for screenshots</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="dropdown-actions">Dropdown selection</h3>
+    <table>
+      <thead><tr><th>Pattern</th><th>Selects by</th></tr></thead>
+      <tbody>
+        <tr><td><code>I select "&lt;text&gt;" in &lt;dropdown&gt;</code></td><td>visible option text</td></tr>
+        <tr><td><code>I select by value "&lt;value&gt;" in &lt;dropdown&gt;</code></td><td>option value attribute</td></tr>
+        <tr><td><code>I select by index "&lt;n&gt;" in &lt;dropdown&gt;</code></td><td>0-based index</td></tr>
+        <tr><td><code>I select the &lt;n&gt;st/nd/rd/th option in &lt;dropdown&gt;</code></td><td>1-based ordinal</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="assertions">Assertions <a href="#assertions" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Pattern</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>&lt;el&gt; should be displayed</code> / <code>visible</code></td><td>Waits up to <code>pgwen.web.wait.seconds</code> for visibility.</td></tr>
+        <tr><td><code>&lt;el&gt; should not be displayed</code></td><td>Waits for the element to become hidden.</td></tr>
+        <tr><td><code>&lt;el&gt; should be hidden</code></td><td>Wait for hidden state.</td></tr>
+        <tr><td><code>&lt;el&gt; should be enabled</code> / <code>disabled</code></td><td>Form-field interactivity.</td></tr>
+        <tr><td><code>&lt;el&gt; should be checked</code> / <code>ticked</code> / <code>unchecked</code></td><td>Checkbox / radio state.</td></tr>
+        <tr><td><code>&lt;el&gt; should exist</code></td><td>Wait for element to be attached to the DOM.</td></tr>
+        <tr><td><code>&lt;el&gt; should be "&lt;value&gt;"</code></td><td>Input value (form fields) or text content.</td></tr>
+        <tr><td><code>&lt;el&gt; should contain "&lt;substr&gt;"</code></td><td>Substring match on text/value.</td></tr>
+        <tr><td><code>&lt;el&gt; should match regex "&lt;pat&gt;"</code></td><td>Regex match on text/value.</td></tr>
+        <tr><td><code>&lt;n&gt; &lt;el&gt;s should be displayed</code></td><td>Count assertion via Playwright <code>locator.count()</code>.</td></tr>
+        <tr><td><code>&lt;dd&gt; should contain "&lt;option&gt;"</code></td><td>Dropdown option presence.</td></tr>
+      </tbody>
+    </table>
+    <p>Assertions accept inline annotations like <code>@Timeout('0s')</code> to skip implicit waits or <code>@Message('...')</code> to override the failure message.</p>
+
+    <div class="callout warning">
+      <strong>Condition vocabulary gaps</strong>
+      The following Gherkin condition forms are widely used in production the reference framework projects but are <strong>not yet supported</strong> by pgwen's <code>evalCondition</code>:
+      <ul style="margin: 6px 0 0 16px;">
+        <li><code>&lt;ref&gt; is defined</code> / <code>is not defined</code></li>
+        <li><code>&lt;ref&gt; is blank</code> / <code>is not blank</code></li>
+        <li><code>&lt;ref&gt; is empty</code> / <code>is not empty</code></li>
+        <li><code>&lt;ref&gt; should (not )?be true/false</code> (without quotes)</li>
+        <li><code>&lt;ref&gt; should (not )?be defined</code></li>
+        <li><code>I assert that &lt;step&gt;</code> soft-assert prefix wrapper</li>
+      </ul>
+      These appear in the implementation backlog. Until they land, projects that use them won't pass step resolution on pgwen.
+    </div>
+
+    <h2 id="text-bindings">Text bindings <a href="#text-bindings" class="anchor">#</a></h2>
+    <p>Capture text from the page or from external sources into a named scope binding.</p>
+    <pre><code>Given the account name is defined by xpath "//h1" in the page
+And   home dir         is defined by system property "user.home"
+And   today date       is defined by sql "${db.query}" on "${db.url}"
+And   body             is defined by file "${pgwen.baseDir}/fixtures/body.json"</code></pre>
+    <table>
+      <thead><tr><th>Source</th><th>Pattern</th></tr></thead>
+      <tbody>
+        <tr><td>Literal</td><td><code>&lt;name&gt; is "&lt;value&gt;"</code></td></tr>
+        <tr><td>Blank / empty / boolean</td><td><code>&lt;name&gt; is blank</code> / <code>... is empty</code> / <code>... is true</code> / <code>... is false</code></td></tr>
+        <tr><td>XPath</td><td><code>&lt;name&gt; is defined by xpath "&lt;p&gt;" in &lt;ref&gt;</code></td></tr>
+        <tr><td>JSONPath</td><td><code>&lt;name&gt; is defined by json path "$.foo.bar" in &lt;ref&gt;</code></td></tr>
+        <tr><td>Regex</td><td><code>&lt;name&gt; is defined by regex "(\\d+)" in &lt;ref&gt;</code></td></tr>
+        <tr><td>File</td><td><code>&lt;name&gt; is defined by file "&lt;path&gt;"</code></td></tr>
+        <tr><td>System property</td><td><code>&lt;name&gt; is defined by system property "&lt;key&gt;"</code></td></tr>
+        <tr><td>SQL</td><td><code>&lt;name&gt; is defined by sql "&lt;query&gt;" on "&lt;url&gt;"</code></td></tr>
+        <tr><td>JavaScript</td><td><code>&lt;name&gt; is defined by javascript "&lt;expr&gt;"</code> · also supports <code>js</code> alias and docstring form</td></tr>
+        <tr><td>System process</td><td><code>&lt;name&gt; is defined by [unix ]system process "&lt;cmd&gt;"</code></td></tr>
+      </tbody>
+    </table>
+    <p>All binding sources accept <code>@Eager</code> or <code>@Lazy</code> — see <a href="annotations.html#eager-lazy">Annotations</a>.</p>
+
+    <h2 id="capture">Capture <a href="#capture" class="anchor">#</a></h2>
+    <p><code>I capture</code> steps read a value at the moment they run and bind the result.</p>
+    <pre><code>When I capture the text in the result panel as the result
+And  I capture the current url as the post-login url
+And  I capture the page title as the page title
+And  I capture the screenshot as the failure screenshot
+And  I capture (.+) attribute of &lt;el&gt; as &lt;name&gt;
+And  I capture the value of &lt;el&gt; as &lt;name&gt;
+And  I capture the selected option in &lt;dropdown&gt; as &lt;name&gt;
+And  I capture the number of &lt;el&gt; elements as the count
+And  I capture the PDF text from file "&lt;path&gt;" as &lt;name&gt;</code></pre>
+
+    <h2 id="dates-numbers">Date &amp; number formatting <a href="#dates-numbers" class="anchor">#</a></h2>
+    <p>Use the <code>@DateTime</code> or <code>@Number</code> prefix on a format step:</p>
+    <pre><code>And @DateTime I format Date of Birth from "dd/MM/yyyy" to "yyyy-MM-dd" as date of birth
+And @Number   I format the amount    from "#,##0.00"     to "0.00"        as amount cents
+
+# Conditional form
+And @DateTime I format X from "yyyy-MM-dd" to "dd/MM/yyyy" as Y if X is not blank</code></pre>
+
+    <h2 id="flow-control">Flow control <a href="#flow-control" class="anchor">#</a></h2>
+    <pre><code># Inline guards — any step
+When I click the cancel button if confirmation is "needed"
+And  I refresh the current page if env.PGWEN_RETRY is "true" otherwise I wait
+
+# Sleep
+When I wait 2 seconds
+And  I wait 500 milliseconds
+
+# Wait for state
+When I wait until the result panel is displayed
+And  I wait until "${pgwen.outDir}/done.flag" file exists
+And  I wait for the result panel
+And  I wait for the alert popup</code></pre>
+
+    <h2 id="alerts">Alerts &amp; dialogs <a href="#alerts" class="anchor">#</a></h2>
+    <pre><code>When I click the delete button
+And  I accept the confirmation
+Then the alert message should be "Are you sure?"
+And  the confirmation popup should be displayed</code></pre>
+    <table>
+      <thead><tr><th>Pattern</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><code>I accept the alert</code> / <code>I accept the confirmation</code></td><td>Accept the next dialog.</td></tr>
+        <tr><td><code>I dismiss the alert</code> / <code>I dismiss the confirmation</code></td><td>Dismiss the next dialog.</td></tr>
+        <tr><td><code>I enter "&lt;text&gt;" in the alert</code></td><td>Type into a prompt dialog and accept.</td></tr>
+        <tr><td><code>I capture the alert popup message [as &lt;name&gt;]</code></td><td>Read the last dialog message.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="windows">Windows &amp; tabs <a href="#windows" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Pattern</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><code>I start a new browser</code> / <code>I close the browser</code></td><td>Browser lifecycle.</td></tr>
+        <tr><td><code>I start a new browser as "&lt;name&gt;"</code> / <code>I switch to the "&lt;name&gt;" browser</code></td><td>Named browsers for multi-session.</td></tr>
+        <tr><td><code>I switch to the new tab</code> / <code>... the last tab</code> / <code>... the parent tab</code></td><td>Tab switching.</td></tr>
+        <tr><td><code>I switch to the "&lt;name&gt;" tab</code></td><td>Switch by tab name.</td></tr>
+        <tr><td><code>I close the current tab</code> / <code>I close the "&lt;name&gt;" tab</code></td><td>Close tabs.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="frames">Frames <a href="#frames" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Pattern</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><code>I switch to (the )?child frame [&lt;index&gt;]</code></td><td>Enter a child frame (optional 0-based index).</td></tr>
+        <tr><td><code>I switch to (the )?frame "&lt;name&gt;"</code></td><td>Enter a named iframe.</td></tr>
+        <tr><td><code>I switch to (the )?parent frame</code> / <code>... default content</code> / <code>... main frame</code></td><td>Leave the current frame.</td></tr>
+      </tbody>
+    </table>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#navigation">Navigation</a></li>
+      <li><a href="#locator-bindings">Locator bindings</a></li>
+      <li><a href="#actions">Element actions</a></li>
+      <li class="depth-3"><a href="#dropdown-actions">Dropdowns</a></li>
+      <li><a href="#assertions">Assertions</a></li>
+      <li><a href="#text-bindings">Text bindings</a></li>
+      <li><a href="#capture">Capture</a></li>
+      <li><a href="#dates-numbers">Dates &amp; numbers</a></li>
+      <li><a href="#flow-control">Flow control</a></li>
+      <li><a href="#alerts">Alerts &amp; dialogs</a></li>
+      <li><a href="#windows">Windows &amp; tabs</a></li>
+      <li><a href="#frames">Frames</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

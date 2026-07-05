@@ -1,0 +1,143 @@
+# Regression smoke gate for pgwen pull requests.
+#
+# Runs the 19-feature `pgwen-regression` pack against the pgwen build at HEAD.
+# Catches DSL-surface breaks before merge.
+#
+# Set-up options (workflow tries them in order):
+#
+#   1. Sibling checkout — if the regression pack lives at `../pgwen-regression`
+#      relative to the pgwen checkout (typical when both repos are cloned into
+#      the same parent dir), the workflow picks it up automatically.
+#
+#   2. Remote repo — set `secrets.PGWEN_REGRESSION_REPO` to `<owner>/<repo>`
+#      (e.g. `myorg/pgwen-regression`); optionally `secrets.PGWEN_REGRESSION_REF`
+#      for a branch/tag other than `main`. The workflow will check that repo out
+#      as a sibling before running the pack.
+#
+#   3. Skip — if neither is available (personal fork without regression access),
+#      the workflow skips the regression step but still runs unit tests + build.
+#
+# Runtime budget: full pack runs in ~1m 15s locally. Cold-start CI with
+# `playwright install` adds ~30s. Hard cap at 10 minutes.
+#
+# Jenkins / Azure Pipelines / GitLab users: mirror the same stages
+# (install → build → unit tests → playwright install → regression).
+# yarn + node are the only host requirements.
+
+name: regression
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'tsconfig.json'
+      - '.github/workflows/regression.yml'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: unit tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20 (with optional internal registry)
+        if: ${{ secrets.PGWEN_NPM_REGISTRY != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: ${{ secrets.PGWEN_NPM_REGISTRY }}
+
+      - name: Use Node.js 20 (default registry — personal fork fallback)
+        if: ${{ secrets.PGWEN_NPM_REGISTRY == '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Unit tests (Vitest)
+        run: yarn test
+
+      - name: Build
+        run: yarn build
+
+  regression-pack:
+    name: regression pack (19 features, 125 scenarios)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit
+    steps:
+      - name: Check out pgwen
+        uses: actions/checkout@v4
+        with:
+          path: pgwen
+
+      - name: Check out pgwen-regression (if configured)
+        id: checkout-regression
+        if: ${{ secrets.PGWEN_REGRESSION_REPO != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PGWEN_REGRESSION_REPO }}
+          ref: ${{ secrets.PGWEN_REGRESSION_REF || 'main' }}
+          path: pgwen-regression
+          token: ${{ secrets.PGWEN_REGRESSION_TOKEN || github.token }}
+
+      - name: Skip regression (no PGWEN_REGRESSION_REPO secret)
+        if: ${{ secrets.PGWEN_REGRESSION_REPO == '' }}
+        run: |
+          echo "::notice::PGWEN_REGRESSION_REPO secret not set — skipping regression pack. Set it to <owner>/<repo> of your pgwen-regression repo to enable."
+          exit 0
+
+      - name: Use Node.js 20 (with optional internal registry)
+        if: ${{ secrets.PGWEN_NPM_REGISTRY != '' && secrets.PGWEN_REGRESSION_REPO != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: ${{ secrets.PGWEN_NPM_REGISTRY }}
+
+      - name: Use Node.js 20 (default registry)
+        if: ${{ secrets.PGWEN_NPM_REGISTRY == '' && secrets.PGWEN_REGRESSION_REPO != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pgwen dependencies
+        if: ${{ secrets.PGWEN_REGRESSION_REPO != '' }}
+        working-directory: pgwen
+        run: yarn install --frozen-lockfile
+
+      - name: Build pgwen
+        if: ${{ secrets.PGWEN_REGRESSION_REPO != '' }}
+        working-directory: pgwen
+        run: yarn build
+
+      - name: Install Playwright browsers
+        if: ${{ secrets.PGWEN_REGRESSION_REPO != '' }}
+        working-directory: pgwen
+        run: yarn dlx playwright install --with-deps chromium
+
+      - name: Run regression pack
+        if: ${{ secrets.PGWEN_REGRESSION_REPO != '' }}
+        working-directory: pgwen
+        run: yarn test:regression
+
+      - name: Upload regression HTML report
+        if: ${{ always() && secrets.PGWEN_REGRESSION_REPO != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-html-report
+          path: pgwen-regression/pgwen/output/reports/
+          retention-days: 14

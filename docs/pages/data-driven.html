@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data-driven runs — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="data-driven">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Guides / Data-driven runs</div>
+    <h1>Data-driven runs</h1>
+    <p>pgwen runs the same scenario once per record from a CSV/JSON feed or an Examples table. Three mechanisms cover most needs.</p>
+
+    <h2 id="examples">Examples tables <a href="#examples" class="anchor">#</a></h2>
+    <p>Inline Gherkin <code>Examples:</code> blocks under a <code>Scenario Outline</code>. Best for a small, fixed set of variants.</p>
+    <pre><code>Scenario Outline: Adding "&lt;ITEM&gt;" shows count "&lt;COUNT&gt;"
+  Given I navigate to "https://todomvc.com/examples/react/"
+  When  I enter "&lt;ITEM&gt;" in the new-todo input
+  And   I press the Enter key
+  Then  the todo count should contain "&lt;COUNT&gt;"
+
+  Examples:
+    | ITEM        | COUNT |
+    | First task    | 1     |
+    | Second task   | 1     |
+    | Walk dog    | 1     |</code></pre>
+
+    <h2 id="csv-feed">CSV feed (-i) <a href="#csv-feed" class="anchor">#</a></h2>
+    <p>Drive scenarios from an external CSV file. Each row becomes one scenario execution; column headers become scope bindings.</p>
+    <pre><code># pgwen/input/todos.csv
+ITEM,EXPECTED_COUNT
+First task,1
+Second task,1
+Walk dog,1</code></pre>
+    <pre><code>yarn pgwen -i pgwen/input/todos.csv pgwen/features/todo.feature</code></pre>
+    <p>Inside the scenario, reference columns by binding name: <code>${ITEM}</code>, <code>${EXPECTED_COUNT}</code>.</p>
+
+    <h2 id="json-feed">JSON feed <a href="#json-feed" class="anchor">#</a></h2>
+    <p>Same idea but with a JSON array. Each object's keys become scope bindings.</p>
+    <pre><code>[
+  { "ITEM": "First task",   "EXPECTED_COUNT": "1" },
+  { "ITEM": "Second task",  "EXPECTED_COUNT": "1" }
+]</code></pre>
+    <pre><code>yarn pgwen -i pgwen/input/todos.json pgwen/features/todo.feature</code></pre>
+
+    <h2 id="examples-annotation">@Examples('&lt;path&gt;') <a href="#examples-annotation" class="anchor">#</a></h2>
+    <p>Attach a feed to a single StepDef (not the whole feature). Optional <code>where=</code> predicate filters rows:</p>
+    <pre><code>@StepDef
+@Examples('${pgwen.baseDir}/input/orders.csv', where="REGION=='NSW' && STATUS=='ACTIVE'")
+Scenario Outline: I process order "&lt;ORDER_ID&gt;"
+  Given I navigate to "${app.url}/orders/&lt;ORDER_ID&gt;"
+  Then  the result panel should be displayed</code></pre>
+
+    <h2 id="autotrim">autoTrim <a href="#autotrim" class="anchor">#</a></h2>
+    <p>Surrounding whitespace in CSV/JSON values is auto-trimmed by default for CSVs. Configurable per format:</p>
+    <pre><code>pgwen.auto.trim.data {
+  csv  = true     # default
+  json = false    # default — preserve whitespace
+}</code></pre>
+
+    <h2 id="iteration">Iteration context <a href="#iteration" class="anchor">#</a></h2>
+    <p>Inside a data-driven scenario, the implicit bindings expose iteration state:</p>
+    <table>
+      <thead><tr><th>Binding</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>pgwen.data.record.index</code></td><td>0-based index of the current record.</td></tr>
+        <tr><td><code>pgwen.data.record.number</code></td><td>1-based number of the current record.</td></tr>
+        <tr><td><code>pgwen.iteration.index</code> / <code>.number</code></td><td>Same, for <code>@ForEach</code> bodies.</td></tr>
+        <tr><td><code>pgwen.examples.table.record.index</code> / <code>.number</code></td><td>Same, for <code>Examples:</code> tables under a <code>Scenario Outline</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="read-only">Read-only feed scope <a href="#read-only" class="anchor">#</a></h2>
+    <p><code>pgwen.input.data.readOnly = true</code> (default) prevents accidental reassignment of feed-derived bindings inside the scenario. Useful for catching name collisions early.</p>
+
+    <h2 id="report">Per-record reporting <a href="#report" class="anchor">#</a></h2>
+    <p>The HTML report renders one row per record under the scenario, with status, duration, and any failure attachment.</p>
+
+    <h2 id="example">Worked example — CSV feed + Scenario Outline <a href="#example" class="anchor">#</a></h2>
+<pre><code># pgwen/input/customers.csv
+customer_id,plan,expected_status
+C-001,basic,active
+C-002,premium,active
+C-003,trial,pending</code></pre>
+<pre><code># pgwen/features/customer-status.feature
+@Examples(file='pgwen/input/customers.csv')
+Feature: Customer status
+
+  Scenario Outline: account &lt;customer_id&gt; on the &lt;plan&gt; plan is &lt;expected_status&gt;
+    Given I am on the admin dashboard
+     When I search for account "&lt;customer_id&gt;"
+     Then the plan badge should be "&lt;plan&gt;"
+      And the status indicator should be "&lt;expected_status&gt;"</code></pre>
+    <p>
+      Each CSV row becomes a separate scenario iteration. The HTML report
+      groups them under the outline with one collapsible row per record;
+      the failure-class badge + sibling-success-rate chip apply per
+      record so a row that fails because of bad input data is visually
+      distinct from a row that fails because of a real bug. Filter rows
+      mid-feed with <code>@Examples(file='…', where='&lt;expr&gt;')</code>:
+    </p>
+<pre><code>@Examples(file='pgwen/input/customers.csv',where="plan eq 'premium'")
+Feature: Premium-only checks</code></pre>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#examples">Examples tables</a></li>
+      <li><a href="#csv-feed">CSV feed</a></li>
+      <li><a href="#json-feed">JSON feed</a></li>
+      <li><a href="#examples-annotation">@Examples annotation</a></li>
+      <li><a href="#autotrim">autoTrim</a></li>
+      <li><a href="#iteration">Iteration context</a></li>
+      <li><a href="#read-only">Read-only feed scope</a></li>
+      <li><a href="#report">Per-record reporting</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

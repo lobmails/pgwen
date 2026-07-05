@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="faq">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Help / FAQ</div>
+    <h1>Frequently Asked Questions</h1>
+
+    <p>
+      This FAQ mirrors the structure of <a href="https://gweninterpreter.org/docs/faq" target="_blank">the reference framework's own FAQ</a>
+      so authors moving from the reference framework to pgwen can find familiar answers in the same shape.
+      Each entry either links to the existing pgwen reference doc, or marks the feature as
+      <strong class="not-supported" style="color:#b32; font-weight:bold;">not yet supported</strong>
+      with a pointer to the action-items / roadmap track.
+    </p>
+
+    <h2 id="basics">Basics <a href="#basics" class="anchor">#</a></h2>
+
+    <h3>What is pgwen?</h3>
+    <p>
+      A Playwright-based BDD framework where projects are written as Gherkin
+      <code>.feature</code> files plus reusable <code>.meta</code> files. No
+      TypeScript required to author scenarios — the DSL covers ~300 step
+      patterns spanning navigation, locator binding, element actions,
+      text / data bindings, assertions, flow control, and data-driven iteration.
+      See <a href="../index.html">Introduction</a>.
+    </p>
+
+    <h3>What are the key features?</h3>
+    <ul>
+      <li>Rich Gherkin DSL — ~300 step patterns, 34 StepDef annotations.</li>
+      <li>Playwright auto-wait + an internal page-readiness wait.</li>
+      <li>Parallel + dry-run + REPL modes.</li>
+      <li>HTML + JSON + JUnit + CSV reports.</li>
+      <li>AI-assisted diagnose with four selectable providers (Claude / OpenAI / Azure OpenAI / GitHub Copilot).</li>
+      <li>Suggest-only AI fix mode — proposes patches without ever modifying source directly.</li>
+      <li>Pattern-level failure grouping so 500 same-locator failures cost one AI call, not 500.</li>
+      <li>Optional AI project scaffolder (<code>pgwen new</code>) with a 12-question cap + TODO.md checklist for unknowns.</li>
+    </ul>
+
+    <h3>What are the system requirements?</h3>
+    <ul>
+      <li>macOS / Linux / Windows.</li>
+      <li>Node.js 18+ (uses native <code>fetch</code>, no SDK dependency for any provider).</li>
+      <li>Playwright-supported browsers (Chromium / Firefox / WebKit).</li>
+      <li>No Java runtime required — pgwen is pure TypeScript / Node.</li>
+    </ul>
+
+    <h3>How does pgwen compare with a hand-rolled Playwright test suite?</h3>
+    <p>
+      pgwen trades some of Playwright's raw flexibility for authoring speed and
+      readability. Non-developers can maintain the <code>.feature</code> files;
+      developers only touch the <code>.meta</code> locators (usually one file per
+      project) and configuration. If your team already has a mature Playwright
+      test suite and only developers author it, pgwen doesn't add much. If your
+      team includes QA / BA / ops people who need to own automation, or you're
+      migrating from an existing BDD framework, pgwen keeps the authoring
+      surface familiar and pins the runtime to Playwright.
+    </p>
+
+    <h3>How mature is pgwen?</h3>
+    <p>
+      Currently <code>1.0.0-rc.1</code>. ~3000 unit tests, plus a 19-feature /
+      125-scenario regression pack that runs as a CI gate on every pull request.
+      <a href="../index.html">Project status</a>.
+    </p>
+
+    <h3>Can I add pgwen to my JS / TS project?</h3>
+    <p>
+      Yes — <code>yarn add -D @pgwen/core</code> (or <code>npm install --save-dev @pgwen/core</code>).
+      See <a href="installation.html">Installation</a>.
+    </p>
+
+    <h3>Does pgwen have a GUI?</h3>
+    <p>
+      No. All functionality runs via the CLI launcher and the interactive REPL.
+      Reports are rendered as static HTML you open in any browser.
+    </p>
+
+    <h3>Can I debug my executable specifications?</h3>
+    <p>
+      Yes — use <code>@Breakpoint</code> on a step to drop into the REPL at that point.
+      See <a href="debugging.html">Debugging</a>.
+    </p>
+
+    <h2 id="execution">Running features <a href="#execution" class="anchor">#</a></h2>
+
+    <h3>What are batch and REPL modes?</h3>
+    <p>
+      Batch mode (<code>-b</code> / <code>--batch</code>) exits immediately after execution — use it in CI.
+      REPL mode keeps the session open after the run so you can inspect scope + evaluate ad-hoc steps.
+      See <a href="repl.html">Running the REPL</a>.
+    </p>
+
+    <h3>How do I run a single feature file?</h3>
+    <pre><code>yarn pgwen path/to/My.feature -b</code></pre>
+
+    <h3>How do I run a whole directory of features?</h3>
+    <pre><code>yarn pgwen path/to/features/ -b</code></pre>
+
+    <h3>How do I run multiple feature paths in sequence?</h3>
+    <pre><code>yarn pgwen a.feature b.feature dir/ -b</code></pre>
+
+    <h3>How do I run features in parallel?</h3>
+    <p>
+      Add <code>--parallel</code>. Parallel scenario execution is also supported.
+    </p>
+    <pre><code>yarn pgwen path/to/features/ --parallel -b</code></pre>
+
+    <h3>Can I stagger the parallel start (ramp-up interval)?</h3>
+    <p>
+      Yes — set <code>pgwen.rampup.interval.seconds</code> in <code>pgwen.conf</code>
+      to stagger worker starts within each batch by N seconds. With
+      <code>maxWorkers=4</code> and <code>rampup=2</code>: worker 1 at t=0, worker 2 at t=2,
+      worker 3 at t=4, worker 4 at t=6 — then all four run to completion in parallel.
+      Useful when a downstream rate limit or login flow gets slammed by simultaneous starts.
+      0 / unset = simultaneous up to <code>maxWorkers</code>.
+    </p>
+
+    <h3>Can I validate my features without executing them?</h3>
+    <p>
+      Yes — <code>pgwen --dry-run</code> resolves every step against the registry +
+      meta StepDefs, reports any unbound references or undefined steps, and never opens a browser.
+      Common short form: <code>yarn pgwen:dryRun</code>.
+    </p>
+
+    <h3>Can I skip features / scenarios at execution time?</h3>
+    <p>
+      Tag-based filtering works the same as the reference framework: <code>@Ignore</code>, or
+      <code>--tags ~@Wip</code> to exclude. See <a href="tags.html">Tags &amp; filtering</a>.
+    </p>
+
+    <h3>Can I run only a specific tag?</h3>
+    <pre><code>yarn pgwen --tags @smoke</code></pre>
+
+    <h2 id="reports">Reports <a href="#reports" class="anchor">#</a></h2>
+
+    <h3>How do I generate reports?</h3>
+    <p>
+      HTML reports generate by default at <code>pgwen/output/reports/html/index.html</code>.
+      Use <code>-f &lt;format&gt;</code> or <code>--format</code> to add others. See <a href="reports.html">Reports</a>.
+    </p>
+
+    <h3>Can I generate CSV reports?</h3>
+    <p>Yes — both built-in CSV summary reports and config-driven <em>results files</em> via <code>@Results</code>.</p>
+
+    <h3>Can I generate JUnit-XML reports?</h3>
+    <p>Yes.</p>
+
+    <h3>Can I generate JSON reports?</h3>
+    <p>Yes — see <a href="reports.html">JSON report</a>. This is the format <code>pgwen diagnose</code> consumes.</p>
+
+    <h3>Can I generate multiple report formats in one run?</h3>
+    <pre><code>yarn pgwen -f junit,html,json,csv</code></pre>
+
+    <h2 id="data-feeds">Data feeds + step composition <a href="#data-feeds" class="anchor">#</a></h2>
+
+    <h3>How can I feed CSV data to my features?</h3>
+    <p>See <a href="data-driven.html">Data-driven runs</a> — same <code>@DataFile</code> / inline CSV patterns Gherkin authors know.</p>
+
+    <h3>How can I feed JSON data?</h3>
+    <p>Identical interface, JSON file in place of CSV. See <a href="data-driven.html#json-feed">JSON feeds</a>.</p>
+
+    <h3>How do I compose step definitions?</h3>
+    <p>
+      Same as the reference framework — declare a <code>Scenario</code> in a <code>.meta</code> file and annotate with
+      <code>@StepDef</code>. The scenario title becomes the new step phrase callable from features
+      and other meta scenarios. See <a href="authoring.html">Authoring features</a>.
+    </p>
+
+    <h3>Are scenario outlines supported?</h3>
+    <p>Yes — full <code>Scenario Outline</code> + <code>Examples</code> table support.</p>
+
+    <h3>Are data tables supported?</h3>
+    <p>Yes — multi-row data tables work the same way as the reference framework.</p>
+
+    <h3>Can I use doc strings?</h3>
+    <p>Yes. Triple-double-quote (<code>""""</code>) docstrings attach to the preceding step.</p>
+
+    <h3>Can I pass parameters to StepDefs?</h3>
+    <p>
+      Yes — quoted <code>"..."</code> tokens in the step text bind into the StepDef's local
+      scope as positional or named parameters. See
+      <a href="dsl.html">DSL → StepDefs</a> for scoping rules.
+    </p>
+
+    <h3>Can I compare or match content using templates?</h3>
+    <p>
+      Yes — <code>&lt;ref&gt; should match template "&lt;template&gt;"</code> with named
+      <code>&lt;placeholder&gt;</code> tokens that bind on match. See
+      <a href="dsl.html">DSL → Template matching</a>.
+    </p>
+
+    <h3>Can I check that text matches a datetime / number format?</h3>
+    <p>
+      Yes — supported forms:
+    </p>
+    <pre><code>&lt;ref&gt; should match datetime format "yyyy-MM-dd"
+&lt;ref&gt; should not match number format "#,##0.00"
+&lt;ref&gt; at json path "$.dob" should match datetime format "dd/MM/yyyy"
+&lt;ref&gt; at xpath "/order/total" should match number format "0.00"
+the current url should match datetime format "yyyyMMddHHmm"
+the page title should not match number format "0"
+&lt;dropdown&gt; text should match datetime format "MMM d, yyyy"
+# guards (if / while / until):
+&lt;step&gt; if total matches number format "0.00"
+I refresh until status matches datetime format "yyyy-MM-dd HH:mm"
+</code></pre>
+
+    <h2 id="assertions">Assertions <a href="#assertions" class="anchor">#</a></h2>
+
+    <h3>Are soft assertions supported?</h3>
+    <p>
+      Yes — three modes: <code>@Hard</code> (fail-fast), <code>@Soft</code> (accumulate + surface at scenario end),
+      <code>@Sustained</code> (accumulate silently). Configured globally via
+      <code>pgwen.assertion.mode</code> or per-step via the annotation.
+    </p>
+
+    <h3>Can pgwen help me write good Gherkin?</h3>
+    <p>
+      Yes — set <code>pgwen.behavior.rules = "strict"</code> in <code>pgwen.conf</code>.
+      Enforces given-when-then ordering + canonical phrasing.
+    </p>
+
+    <h2 id="web">Browsers + remote execution <a href="#web" class="anchor">#</a></h2>
+
+    <h3>How do I target a specific browser?</h3>
+    <p>
+      <code>pgwen.target.browser</code> in config, or <code>--browser chromium|firefox|webkit</code> at the CLI.
+    </p>
+
+    <h3>Can I locate elements inside frames?</h3>
+    <p>Yes — locator chaining with <code>in &lt;parent&gt;</code> supports frames + nested elements.</p>
+
+    <h3>Can I drive multiple browser sessions from one feature?</h3>
+    <p>
+      <strong class="not-supported" style="color:#b32;">Partially supported.</strong>
+      pgwen handles multiple tabs within a single browser context via
+      <code>I switch to (the )?child tab</code> and the <code>n tabs should be open</code>
+      assertion. Named multi-session swapping
+      (the reference framework's <code>I switch to my X session</code>) is not yet wired.
+    </p>
+
+    <h3>Can I run pgwen on Docker?</h3>
+    <p>
+      Yes — <code>pgwen/Dockerfile</code> ships in the repo, plus <code>docker-compose.grid.yml</code>
+      for Playwright + WebDriver-style grid scenarios. <em>Note: the base image currently pulls from
+      <code>mcr.microsoft.com/playwright</code>.</em>
+    </p>
+
+    <h3>Can I run pgwen on BrowserStack or LambdaTest?</h3>
+    <p>
+      <strong class="not-supported" style="color:#b32;">Not yet supported.</strong>
+      Tracked in <code>project_action_items.md</code> under the operational backlog.
+      Playwright supports both endpoints natively; the integration is mostly credential plumbing
+      + remote URL templates.
+    </p>
+
+    <h3>Can I run pgwen in CI (Jenkins / Azure Pipelines / GitHub Actions)?</h3>
+    <p>
+      Yes — the migrate CLI already rewrites <code>Jenkinsfile</code> + <code>azure-pipelines.yml</code>
+      and the dry-run / batch modes are CI-friendly. See <a href="cli.html">CLI</a>.
+    </p>
+
+    <h3>Can I run a headless browser?</h3>
+    <p>Yes — <code>pgwen.web.browser.headless = true</code> in <code>pgwen.conf</code>, or pass <code>--headed=false</code>.</p>
+
+    <h3>Can I emulate a mobile device in the browser?</h3>
+    <p>
+      <strong class="not-supported" style="color:#b32;">Not yet supported via dedicated config.</strong>
+      Playwright has it built in; pgwen wires <code>pgwen.web.browser.size</code> and
+      <code>pgwen.web.useragent</code> but no dedicated <code>devices.iPhone 14</code> preset.
+      Roadmap item.
+    </p>
+
+    <h3>How do I upload a file?</h3>
+    <p>
+      Same as the reference framework: declare a file-input locator, then use
+      <code>I set the &lt;input&gt; to "&lt;absolute path&gt;"</code> (or a scope ref / config key
+      resolving to a path).
+    </p>
+
+    <h2 id="config">Configuration <a href="#config" class="anchor">#</a></h2>
+
+    <h3>Can I configure runtime settings?</h3>
+    <p>Yes — full HOCON config tree. See <a href="settings.html">Settings</a>.</p>
+
+    <h3>Is string interpolation supported?</h3>
+    <p>
+      Yes — <code>${...}</code> resolves against scope, env vars (<code>${env.NAME}</code>), and
+      <code>pgwen.*</code> implicit values (<code>${pgwen.feature.name}</code> etc.).
+      The <code>:masked</code> suffix on config keys redacts the value in logs / reports.
+    </p>
+
+    <h3>How do I configure logging?</h3>
+    <p>
+      pgwen uses native Node <code>console</code> with structured prefixes — no logback equivalent.
+      Verbosity is controlled by <code>pgwen.console.log</code> in config; CI usually wants
+      <code>"summary"</code>, REPL usually wants <code>"all"</code>.
+    </p>
+
+    <h3>Can I work with database data?</h3>
+    <p>
+      <strong class="not-supported" style="color:#b32;">Not built in.</strong>
+      the reference framework ships SQL bindings; pgwen does not, by design — most enterprise RPA projects interact with
+      apps via UI / API, not direct DB. Projects needing DB access can call out via
+      <code>I execute unix system process</code> (e.g. <code>psql</code>) or a custom JS binding.
+    </p>
+
+    <h2 id="ai">AI features (pgwen-only) <a href="#ai" class="anchor">#</a></h2>
+
+    <h3>Which AI providers can I use?</h3>
+    <p>
+      Four. Set <code>pgwen.diagnose.ai.provider</code> in config (or <code>--provider</code> at the CLI):
+    </p>
+    <ul>
+      <li><code>claude</code> (default) — uses <code>ANTHROPIC_API_KEY</code>.</li>
+      <li><code>openai</code> — uses <code>OPENAI_API_KEY</code>.</li>
+      <li><code>azure-openai</code> — uses <code>AZURE_OPENAI_API_KEY</code> + deployment / api-version env vars.</li>
+      <li><code>copilot</code> — uses <code>GITHUB_TOKEN</code>; adapter does the Copilot token-exchange internally.</li>
+    </ul>
+    <p>See <a href="diagnose.html#providers">Diagnose → Providers</a> for the full env-var list.</p>
+
+    <h3>What does <code>pgwen diagnose</code> do?</h3>
+    <p>
+      Reads a JSON report from a previous run, classifies each failure with a rule-based heuristic
+      (<code>LOCATOR_NOT_FOUND</code>, <code>ASSERTION_FAILED</code>, etc.), and optionally calls the
+      configured AI provider for a structured diagnosis with proposed fixes. See
+      <a href="diagnose.html">Diagnose</a>.
+    </p>
+
+    <h3>How do I scaffold a new project?</h3>
+    <p>
+      <code>yarn pgwen new</code> runs an interactive AI-driven scaffolder. Capped at 12 questions
+      total; anything unanswered gets dropped into <code>TODO.md</code> as a checklist. See
+      <a href="new-project.html">pgwen new</a>.
+    </p>
+
+    <h2 id="contrib">Contributing + support <a href="#contrib" class="anchor">#</a></h2>
+
+    <h3>Where do I report bugs or ask for features?</h3>
+    <p>
+      File against the pgwen project's issue tracker (internal an internal tracker / GitHub —
+      ask your team lead for the link). Include the failing <code>.feature</code> + <code>.meta</code>
+      snippet, the <code>results.json</code>, and the version output (<code>pgwen --version</code>).
+    </p>
+
+    <h3>Is pgwen open-source?</h3>
+    <p>
+      pgwen is an internal project tracking the reference framework's public surface. the reference framework itself is
+      <a href="https://github.com/pgwen-interpreter/pgwen" target="_blank">Apache 2.0</a>.
+    </p>
+
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#basics">Basics</a></li>
+      <li><a href="#execution">Running features</a></li>
+      <li><a href="#reports">Reports</a></li>
+      <li><a href="#data-feeds">Data feeds + step composition</a></li>
+      <li><a href="#assertions">Assertions</a></li>
+      <li><a href="#web">Browsers + remote execution</a></li>
+      <li><a href="#config">Configuration</a></li>
+      <li><a href="#ai">AI features</a></li>
+      <li><a href="#contrib">Contributing + support</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Reference</h4><ul><li><a href="https://gweninterpreter.org/docs/faq" target="_blank">the reference framework FAQ</a></li><li><a href="https://github.com/pgwen-interpreter/pgwen" target="_blank">the reference framework source</a></li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

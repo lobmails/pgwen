@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration profiles — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="profiles">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Guides / Configuration profiles</div>
+    <h1>Configuration profiles</h1>
+    <p>A profile is a config file that overlays <code>pgwen.conf</code> for a specific run target — typically one project process. Profiles live at <code>pgwen/conf/profiles/&lt;name&gt;.conf</code> and are selected with <code>-p &lt;name&gt;</code>.</p>
+
+    <h2 id="layout">Layout <a href="#layout" class="anchor">#</a></h2>
+    <pre><code>pgwen/
+└── conf/
+    └── profiles/
+        ├── base.conf            # optional — auto-loaded before any named profile
+        ├── todo.conf
+        ├── signup.conf
+        └── reports-only.conf</code></pre>
+
+    <h2 id="example">Example <a href="#example" class="anchor">#</a></h2>
+    <p>A profile typically overrides <code>launch.options</code> to pin which feature(s) it runs, plus the per-process <code>outDir</code>:</p>
+    <pre><code># pgwen/conf/profiles/todo.conf
+pgwen {
+  launch.options {
+    features = [ "${pgwen.baseDir}/features/todo.feature" ]
+  }
+  outDir = "${pgwen.baseDir}/output/todo"
+}</code></pre>
+
+    <p>Run it:</p>
+    <pre><code>yarn pgwen -p todo</code></pre>
+
+    <h2 id="base">base.conf inheritance <a href="#base" class="anchor">#</a></h2>
+    <p>If <code>pgwen/conf/profiles/base.conf</code> exists and the active profile is not <code>base</code>, it is loaded first. Use this for common defaults shared by every profile (e.g. report config, results CSV layout).</p>
+
+    <h2 id="env-overlay">Environment overlay <a href="#env-overlay" class="anchor">#</a></h2>
+    <p>Independent of profiles, <code>pgwen.target.env</code> auto-loads <code>pgwen/conf/env/&lt;env&gt;.conf</code> or <code>.json</code> on top of <code>pgwen.conf</code>. Used for environment-scoped values like base URLs and credentials.</p>
+    <pre><code># pgwen/conf/env/test.json
+{
+  "app": {
+    "url": "https://test.example.com",
+    "username": "test-user"
+  }
+}</code></pre>
+
+    <h2 id="extra-conf">Extra -c overlays <a href="#extra-conf" class="anchor">#</a></h2>
+    <p><code>-c &lt;file&gt;</code> overlays an arbitrary config file. Commonly used for browser-specific overlays in CI:</p>
+    <pre><code>yarn pgwen -p todo -c pgwen/conf/browsers/grid.conf</code></pre>
+
+    <p>Browser overlay files live in <code>pgwen/conf/browsers/</code>:</p>
+    <pre><code># pgwen/conf/browsers/grid.conf
+pgwen.web.remote.url = "ws://playwright-grid:9222/playwright"</code></pre>
+
+    <h2 id="layering">Final layering order <a href="#layering" class="anchor">#</a></h2>
+    <ol>
+      <li><code>pgwen.conf</code> (base)</li>
+      <li>Env conf for <code>pgwen.target.env</code></li>
+      <li>Each <code>-c &lt;file&gt;</code>, in CLI order</li>
+      <li><code>base.conf</code> (if active profile ≠ <code>base</code>)</li>
+      <li>The named profile conf</li>
+    </ol>
+    <p>Each layer's keys override earlier layers'.</p>
+
+    <h2 id="implicit">Implicit profile bindings <a href="#implicit" class="anchor">#</a></h2>
+    <p>The active profile name is available as <code>${pgwen.profile.name}</code>; the active env as <code>${pgwen.target.env}</code>. Both are commonly used in report keys and run-tagging.</p>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#layout">Layout</a></li>
+      <li><a href="#example">Example</a></li>
+      <li><a href="#base">base.conf inheritance</a></li>
+      <li><a href="#env-overlay">Environment overlay</a></li>
+      <li><a href="#extra-conf">-c overlays</a></li>
+      <li><a href="#layering">Final layering order</a></li>
+      <li><a href="#implicit">Implicit bindings</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

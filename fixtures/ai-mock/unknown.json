@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "name": "unknown",
+    "purpose": "Claude can't decide between categories — low confidence, no machine_proposal, escalates to human. Default fallback fixture.",
+    "matches_on": "no specific match — used as defaultCall in router fixtures"
+  },
+  "calls": [
+    {
+      "matchOn": { "containsInPrompt": "UNKNOWN" },
+      "response": {
+        "output": {
+          "category": "unknown",
+          "confidence": "low",
+          "human_explanation": "Insufficient signal to classify with confidence. The DOM excerpt and trace don't show a clear failure mode; the error stack points to a generic Playwright timeout without a single dominant cause. Escalate to a human reviewer with the linked trace.zip.",
+          "evidence": [
+            "Error class: TimeoutError (generic — no specific selector / network signal)",
+            "DOM excerpt has the target element present and visible — selector should resolve",
+            "No prior pgwen-fix on this line; no sibling failures in this run; no consecutive failure"
+          ],
+          "alternatives_considered": [
+            { "option": "Treat as locator_drift", "rejected_because": "Element IS present in the DOM excerpt — no obvious drift" },
+            { "option": "Treat as timing", "rejected_because": "No async-render signal in the trace timeline" }
+          ],
+          "files_likely_involved": [],
+          "escalation_signals": {
+            "prior_pgwen_fix_on_same_line": false,
+            "shared_meta_imported_by_multiple_features": false,
+            "failure_repeated_in_consecutive_runs": false
+          },
+          "machine_proposal": null,
+          "auto_fix_safe": false
+        },
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-unknown-001",
+        "provider": "claude"
+      }
+    }
+  ],
+  "defaultCall": {
+    "output": {
+      "category": "unknown",
+      "confidence": "low",
+      "human_explanation": "Default fallback: insufficient signal to classify. Use the linked trace.zip for human review.",
+      "evidence": [],
+      "alternatives_considered": [],
+      "files_likely_involved": [],
+      "escalation_signals": {
+        "prior_pgwen_fix_on_same_line": false,
+        "shared_meta_imported_by_multiple_features": false,
+        "failure_repeated_in_consecutive_runs": false
+      },
+      "machine_proposal": null,
+      "auto_fix_safe": false
+    },
+    "model": "claude-sonnet-4-6",
+    "messageId": "mock-unknown-default",
+    "provider": "claude"
+  }
+}

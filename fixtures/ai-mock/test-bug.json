@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "name": "test-bug",
+    "purpose": "Claude classifies as test_bug — the test logic itself is wrong (wrong assertion value, off-by-one, incorrect expected text). App is fine.",
+    "matches_on": "prompt contains 'DslAssertionError' (from error_class in DiagnoseInput)"
+  },
+  "calls": [
+    {
+      "matchOn": { "containsInPrompt": "DslAssertionError" },
+      "response": {
+        "output": {
+          "category": "test_bug",
+          "confidence": "high",
+          "human_explanation": "The assertion expects 'Welcome, Admin' but the app correctly renders 'Welcome, admin' (lowercase). The application contract has always rendered the user role lowercased — the test was written with the wrong expected casing. Use @IgnoreCase or fix the expected value.",
+          "evidence": [
+            "Pre-failure DOM excerpt: <h2>Welcome, admin</h2>",
+            "Application source (src/views/header.tsx) toLowerCases the user role before rendering — by design, present in the original commit",
+            "No other scenario in the suite asserts this string with mixed casing"
+          ],
+          "alternatives_considered": [
+            { "option": "Treat as app_regression (text changed)", "rejected_because": "The lowercased render is the original design; git blame shows it has rendered this way since the first commit" },
+            { "option": "Treat as locator_drift (wrong element)", "rejected_because": "The selector targets the correct element — the text in it just doesn't match the asserted casing" }
+          ],
+          "files_likely_involved": [
+            { "path": "features/welcome.feature", "role": "feature" }
+          ],
+          "escalation_signals": {
+            "prior_pgwen_fix_on_same_line": false,
+            "shared_meta_imported_by_multiple_features": false,
+            "failure_repeated_in_consecutive_runs": true
+          },
+          "machine_proposal": null,
+          "auto_fix_safe": false
+        },
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-test-bug-001",
+        "provider": "claude"
+      }
+    }
+  ]
+}

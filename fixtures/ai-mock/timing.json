@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "name": "timing",
+    "purpose": "Claude classifies as timing — the element exists but wasn't ready when the step ran. Suggests @Delay/@Timeout, not a selector rebind.",
+    "matches_on": "prompt contains 'wait timeout exceeded' (from error_message in DiagnoseInput)"
+  },
+  "calls": [
+    {
+      "matchOn": { "containsInPrompt": "wait timeout exceeded" },
+      "response": {
+        "output": {
+          "category": "timing",
+          "confidence": "medium",
+          "human_explanation": "The dashboard widget renders 1.5-3s after page load (async fetch). The default 1s wait inside the assertion fires before the DOM stabilises. This is a timing race, not a selector or app issue — the same step passes on a retried run ~60% of the time.",
+          "evidence": [
+            "TimeoutError at locator.waitFor — element appeared 1.8s after the wait window closed (per trace.zip)",
+            "Sibling scenarios bound the same element successfully when preceded by a 2s page-ready check",
+            "Telemetry: same step failed in 3 of the last 10 runs (intermittent — not consistent)"
+          ],
+          "alternatives_considered": [
+            { "option": "Treat as locator_drift", "rejected_because": "The selector resolves correctly on the retry — the element exists, only the timing was wrong" },
+            { "option": "Treat as app_regression (page broken)", "rejected_because": "Other scenarios on the same page passed; this is isolated to the async widget" }
+          ],
+          "files_likely_involved": [
+            { "path": "features/dashboard.feature", "role": "feature" }
+          ],
+          "escalation_signals": {
+            "prior_pgwen_fix_on_same_line": false,
+            "shared_meta_imported_by_multiple_features": false,
+            "failure_repeated_in_consecutive_runs": false
+          },
+          "machine_proposal": null,
+          "auto_fix_safe": false
+        },
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-timing-001",
+        "provider": "claude"
+      }
+    }
+  ]
+}

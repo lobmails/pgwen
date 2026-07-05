@@ -1,0 +1,74 @@
+# pgwen docker-compose — project execution service
+#
+# Mirrors the client's existing Pgwen/WebDriver pattern but without a WebDriver
+# Hub — Playwright manages its own browser processes inside the container.
+#
+# Environment variables consumed (set by your CI pipeline (Jenkins / Azure Pipelines / GitHub Actions) → docker-compose):
+#
+#   PGWEN_ENV       test | prod           Target environment
+#   PROJECT_PROFILE    Example | …     Profile name passed as -p flag
+#   PGWEN_PARALLEL  true | false          Enable parallel feature execution
+#   PGWEN_VIDEO     true | false          Record video (false = off, true = on)
+#   PGWEN_BROWSER   chromium|firefox|webkit  Override browser engine (optional)
+#
+# Example CI pipeline pattern (Jenkins / Azure Pipelines / GitHub Actions):
+#   booleanParam(name: 'video',    defaultValue: false, ...)
+#   booleanParam(name: 'parallel', defaultValue: true,  ...)
+#   environment {
+#     PGWEN_ENV      = "${params.env}"
+#     PROJECT_PROFILE   = "${params.process}"
+#     PGWEN_PARALLEL = "${params.parallel}"
+#     PGWEN_VIDEO    = "${params.video}"
+#   }
+#
+# pgwen.conf controls video via HOCON optional substitution:
+#   pgwen {
+#     browser {
+#       video = "off"
+#       video = ${?PGWEN_VIDEO}    # overrides to "true" (→ "on") when the pipeline enables it
+#     }
+#   }
+
+services:
+
+  pgwen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PGWEN_ENV
+      - PROJECT_PROFILE
+      - PGWEN_PARALLEL
+      - PGWEN_VIDEO
+      - PGWEN_BROWSER
+      - TZ
+      # Add any credentials your project needs:
+      # - APP_USERNAME
+      # - APP_PASSWORD
+    volumes:
+      - $PWD:/project
+    working_dir: /project
+    # npm ci installs dependencies; pgwen CLI runs the project
+    # -p $PROJECT_PROFILE loads pgwen/conf/profiles/$PROJECT_PROFILE.conf
+    # -b enables batch mode (non-interactive, exits with code 0/1)
+    command: >
+      bash -c "npm ci --ignore-scripts &&
+               node dist/cli/launcher.js -p $${PROJECT_PROFILE} -b"
+
+  pgwen-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PGWEN_ENV
+      - TZ
+      # Add any credentials your project needs:
+      # - APP_USERNAME
+      # - APP_PASSWORD
+    volumes:
+      - $PWD:/project
+    working_dir: /project
+    # Dry-run only — validates step resolution without opening a browser
+    command: >
+      bash -c "npm ci --ignore-scripts &&
+               node dist/cli/launcher.js --dry-run pgwen/features/"

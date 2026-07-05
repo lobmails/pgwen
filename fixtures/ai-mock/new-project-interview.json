@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "name": "new-project-interview",
+    "purpose": "Exercises the pgwen new conversational interview. Each chat() text MUST be a JSON-encoded turn response per src/cli/NewProject.ts:402 (parseTurnResponse). Turn types: 'question', 'blueprint', 'ready', 'warning'. The flow below covers the canonical happy path: one question → blueprint (approved) → ready.",
+    "scenario": "Project author wants a project that uploads a CSV to a portal and verifies the upload.",
+    "schema_reference": "src/cli/NewProject.ts:402 parseTurnResponse + src/cli/NewProjectPrompt.ts ClaudeTurnResponse"
+  },
+  "chats": [
+    {
+      "matchOn": { "containsInLastUserMessage": "example-csv-uploader" },
+      "response": {
+        "text": "{\"type\":\"question\",\"questions\":[\"Which target environment should this project default to (test / staging)?\"],\"field\":\"target_env\",\"help\":\"Test-only is safest; staging when you need real CSVs.\"}",
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-interview-q1",
+        "provider": "claude"
+      }
+    },
+    {
+      "matchOn": { "containsInLastUserMessage": "test" },
+      "response": {
+        "text": "{\"type\":\"blueprint\",\"summary\":\"A test-environment CSV upload project that verifies the uploaded row appears in the result table by unique filename. Cleans up after itself via @Finally.\",\"folder_structure\":\"example-csv-uploader/\\n├── pgwen.conf\\n├── pgwen/\\n│   ├── conf/profiles/Upload.conf\\n│   ├── conf/env/test.json\\n│   ├── meta/{Login,Upload,Cleanup}.meta\\n│   ├── features/upload.feature\\n│   └── input/uploads.csv\\n└── package.json\",\"selected_capabilities\":[\"login-flow\",\"file-upload\",\"result-table-assertion\",\"finally-cleanup\",\"data-feed-csv\"],\"excluded_capabilities\":[\"api-testing\",\"multi-window\"],\"scripts\":{\"pgwen\":\"pgwen -p Upload\"},\"sample_files\":[\"pgwen/input/uploads.csv\"],\"ci_cd\":\"GitHub Actions on push\",\"assumptions\":[\"Portal uses username+password login\",\"Result table has a filename column we can locate by text\"],\"risks\":[\"Test env credentials must be configured in pgwen/conf/env/test.json\"],\"todos\":[\"Set portal.url in pgwen/conf/env/test.json to your test environment URL\",\"Add real test credentials to pgwen/conf/env/test.json\"]}",
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-interview-blueprint",
+        "provider": "claude"
+      }
+    },
+    {
+      "matchOn": { "containsInLastUserMessage": "Blueprint approved" },
+      "response": {
+        "text": "{\"type\":\"ready\",\"summary\":\"Generated example-csv-uploader\",\"files\":{\"pgwen.conf\":\"pgwen {\\n  baseDir = \\\"pgwen\\\"\\n  target.env = \\\"test\\\"\\n}\\n\",\"pgwen/conf/profiles/Upload.conf\":\"pgwen {\\n  launch {\\n    options {\\n      features = [ \\\"${pgwen.baseDir}/features/upload.feature\\\" ]\\n      meta = [ \\\"${pgwen.baseDir}/meta\\\" ]\\n    }\\n  }\\n}\\n\",\"pgwen/conf/env/test.json\":\"{\\n  \\\"portal\\\": {\\n    \\\"url\\\": \\\"https://portal.test.example.com\\\",\\n    \\\"username\\\": \\\"\\\",\\n    \\\"password\\\": \\\"\\\"\\n  }\\n}\\n\",\"pgwen/meta/Login.meta\":\"Feature: Login meta\\n\\n  @StepDef\\n  @Context\\n  Scenario: I log in to the portal\\n     When I navigate to \\\"${portal.url}\\\"\\n      And the username field can be located by id \\\"username\\\"\\n      And the password field can be located by id \\\"password\\\"\\n      And the sign-in button can be located by id \\\"sign-in\\\"\\n      And I enter \\\"${portal.username}\\\" in the username field\\n      And I enter \\\"${portal.password}\\\" in the password field\\n      And I click the sign-in button\\n\",\"pgwen/meta/Upload.meta\":\"Feature: Upload meta\\n\\n  @StepDef\\n  @Context\\n  Scenario: I upload \\\"<file>\\\" via the portal\\n    Given the file input can be located by css \\\"input[type='file']\\\"\\n      And the submit button can be located by id \\\"upload-submit\\\"\\n     When I send file \\\"pgwen/input/<file>\\\" to the file input\\n      And I click the submit button\\n\",\"pgwen/meta/Cleanup.meta\":\"Feature: Cleanup meta\\n\\n  @StepDef\\n  @Context\\n  Scenario: I clean up \\\"<file>\\\"\\n     Then the cleanup row can be located by xpath \\\"//tr[td[contains(text(),'<file>')]]/td[@class='actions']/button[text()='Delete']\\\"\\n     When I click the cleanup row\\n\",\"pgwen/features/upload.feature\":\"@Examples(file='pgwen/input/uploads.csv')\\nFeature: Upload CSV to portal\\n\\n  Scenario Outline: upload <filename> and verify\\n    Given I log in to the portal\\n     When I upload \\\"<filename>\\\" via the portal\\n     Then the result row can be located by xpath \\\"//tr/td[contains(text(),'<filename>')]\\\"\\n      And the result row should be displayed\\n      And @Finally @Try I clean up \\\"<filename>\\\"\\n\",\"pgwen/input/uploads.csv\":\"filename,description\\nsample.csv,first test upload\\n\",\"package.json\":\"{\\n  \\\"name\\\": \\\"example-csv-uploader\\\",\\n  \\\"private\\\": true,\\n  \\\"scripts\\\": {\\n    \\\"pgwen\\\": \\\"pgwen -p Upload\\\"\\n  }\\n}\\n\",\"TODO.md\":\"# TODO\\n\\n- [ ] Set portal.url in pgwen/conf/env/test.json to your test environment URL\\n- [ ] Add real test credentials to pgwen/conf/env/test.json\\n\"}}",
+        "model": "claude-sonnet-4-6",
+        "messageId": "mock-interview-ready",
+        "provider": "claude"
+      }
+    }
+  ],
+  "defaultChat": {
+    "text": "{\"type\":\"question\",\"questions\":[\"Could you describe the project you want to build?\"],\"field\":\"description\",\"help\":\"A one-line description is enough to get started.\"}",
+    "model": "claude-sonnet-4-6",
+    "messageId": "mock-interview-default",
+    "provider": "claude"
+  }
+}

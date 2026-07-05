@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pgwen — Playwright BDD framework</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body data-page="introduction">
+
+<header class="site-header">
+  <a class="site-logo" href="index.html">
+    <span class="logo-mark">p</span>
+    pgwen
+  </a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Introduction</div>
+    <h1>pgwen</h1>
+    <p>
+      <strong>pgwen</strong> is a Playwright-based BDD test automation framework. Projects are
+      written as plain Gherkin <code>.feature</code> files plus reusable <code>.meta</code>
+      files — no code, no compilation step. The DSL covers ~125 patterns spanning
+      navigation, locator binding, element actions, text/data bindings, assertions,
+      flow control, and data-driven iteration.
+    </p>
+
+    <h2 id="what-pgwen-is-for">What pgwen is for <a href="#what-pgwen-is-for" class="anchor">#</a></h2>
+    <p>
+      Building executable specifications and automated browser projects that non-developers
+      can author and maintain. The same <code>.feature</code> file you use to describe
+      behaviour is what runs — there's no separate test layer.
+    </p>
+    <ul>
+      <li>End-to-end browser automation against any web app (Chromium, Firefox, WebKit)</li>
+      <li>Data-driven runs from CSV / JSON / Gherkin <code>Examples</code> tables</li>
+      <li>Reusable step definitions in <code>.meta</code> files, declared with <code>@StepDef</code></li>
+      <li>Reports in HTML, JUnit XML, JSON, CSV — failed steps carry a rule-based <a href="pages/reports.html#failure-class">failure-class badge</a></li>
+      <li>An interactive REPL for step-by-step exploration against a live browser</li>
+      <li>Opt-in <a href="pages/diagnose.html">AI-assisted diagnose</a> for 2am failure triage — Claude reads a focused bundle (locator, DOM excerpt, recent git diffs) and proposes a fix</li>
+    </ul>
+
+    <h2 id="quick-start">Quick start <a href="#quick-start" class="anchor">#</a></h2>
+    <p>Install pgwen and Playwright as dev dependencies, then install the browser Playwright uses:</p>
+    <pre><code>npm install --save-dev @pgwen/core playwright
+npx playwright install chromium</code></pre>
+    <p>The AI-assisted scaffolder gives you a working project in one command (requires <code>ANTHROPIC_API_KEY</code>):</p>
+    <pre><code>npx pgwen new</code></pre>
+    <p>Or, to write your own scenario from scratch:</p>
+
+    <p>Write a feature file at <code>pgwen/features/todo.feature</code>:</p>
+    <pre><code>Feature: TodoMVC
+
+  Scenario: Add a new todo
+    Given I navigate to "https://todomvc.com/examples/react/"
+    When  I enter "First task" in the new-todo input
+    And   I press the Enter key
+    Then  the todo count should be "1 item left"</code></pre>
+
+    <p>Bind the locator in <code>pgwen/features/todo.meta</code>:</p>
+    <pre><code>Feature: Todo bindings
+
+  @StepDef
+  Scenario: the new-todo input can be located by class "new-todo"</code></pre>
+
+    <p>Run it:</p>
+    <pre><code>yarn pgwen pgwen/features/todo.feature</code></pre>
+
+    <pre><code>$ yarn pgwen pgwen/features/todo.feature
+
+   _ __   __ _    _      __   ___   _ __
+  | '_ \ / _' |  \ \ /\ / / / _ \ | '_ \
+  | |_) || (_| |  \ V  V / |  __/ | | | |
+  | .__/  \__, |   \_/\_/   \___|  |_| |_|
+  |_|     |___/
+
+Welcome to pgwen v1.0.0
+Target browser: chrome    Target environment: test
+
+Feature: TodoMVC     [pgwen/features/todo.feature]
+
+  Scenario: add a todo and toggle it
+    Given I navigate to "https://todomvc.com/examples/react/" [820ms] ✓
+    When  I enter "Second task" in the new-todo input            [60ms] ✓
+    And   I press the Enter key                                 [12ms] ✓
+    Then  the new-todo input should be empty                    [8ms]  ✓
+
+           Passed  Failed  Sustained  Skipped  Pending
+  1 Feature    1       -         -         -        -
+  1 Scenario   1       -         -         -        -
+  4 Steps      4       -         -         -        -
+  Elapsed   900ms
+
+Reports:
+   HTML  pgwen/output/reports/html/index.html
+   JSON  pgwen/output/reports/json/results.json
+   CSV   pgwen/output/reports/csv/results.csv</code></pre>
+
+    <h2 id="how-it-runs">How it runs <a href="#how-it-runs" class="anchor">#</a></h2>
+    <p>
+      Each <code>.feature</code> file is parsed by Cucumber's Gherkin parser, then
+      composed against the active locator/binding scope (built from your
+      <code>.meta</code> files) and executed step-by-step against a Playwright
+      browser context. The same engine drives the REPL (<code>--repl</code>),
+      so anything you can run in a feature you can also poke at interactively.
+    </p>
+
+    <h2 id="next">Next <a href="#next" class="anchor">#</a></h2>
+    <ul>
+      <li><a href="pages/installation.html">Installation</a> — supported Node version, registry config, peer Playwright install.</li>
+      <li><a href="pages/first-project.html">Your first project</a> — full TodoMVC walkthrough.</li>
+      <li><a href="pages/dsl.html">DSL reference</a> — the complete list of step patterns.</li>
+      <li><a href="pages/settings.html">Settings reference</a> — every <code>pgwen.conf</code> key.</li>
+      <li><a href="pages/diagnose.html">Diagnose &amp; AI</a> — the failure-triage tool: rule-based, AI-assisted, telemetry analysis, reviewer workflow.</li>
+    </ul>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#what-pgwen-is-for">What pgwen is for</a></li>
+      <li><a href="#quick-start">Quick start</a></li>
+      <li><a href="#how-it-runs">How it runs</a></li>
+      <li><a href="#next">Next</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div>
+      <h4>pgwen</h4>
+      <ul>
+        <li><a href="pages/dsl.html">DSL reference</a></li>
+        <li><a href="pages/settings.html">Settings</a></li>
+        <li><a href="pages/cli.html">CLI</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Built on</h4>
+      <ul>
+        <li><a href="https://playwright.dev/" target="_blank">Playwright</a></li>
+        <li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Browser support</h4>
+      <ul>
+        <li>Chromium · Firefox · WebKit</li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="assets/js/layout.js"></script>
+<script src="assets/js/search.js"></script>
+</body>
+</html>

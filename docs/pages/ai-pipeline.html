@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI pipeline — pgwen</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+  <style>
+    /* ASCII diagrams need to stay readable: prevent wrapping, keep monospace tight. */
+    pre.diagram { line-height: 1.25; white-space: pre; overflow-x: auto; }
+  </style>
+</head>
+<body data-page="ai-pipeline">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Diagnose &amp; AI / Pipeline architecture</div>
+    <h1>AI pipeline architecture</h1>
+
+    <p>
+      How <code>pgwen diagnose</code>'s AI-backed branch is built — what runs in what
+      order, what gates exist, and how the design keeps the cost down. Read alongside
+      the <a href="diagnose.html">diagnose CLI guide</a>.
+    </p>
+
+    <h2 id="end-to-end">End-to-end view <a href="#end-to-end" class="anchor">#</a></h2>
+
+    <p>
+      A single pgwen run produces both the data that drives diagnose and the artefacts
+      that the analysis tool reads back later:
+    </p>
+
+    <pre class="diagram"><code>┌────────────────────────────────────────────────────────────────────────────┐
+│  pgwen run                                                                 │
+│                                                                            │
+│   ┌────────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐ │
+│   │  Feature   │───▶│ Compositor  │───▶│ DSL handler  │───▶│ Playwright │ │
+│   │   files    │    │ + Scope     │    │ + binding    │    │  browser   │ │
+│   └────────────┘    └─────────────┘    └──────────────┘    └────────────┘ │
+│                            │                                              │
+│                            ▼  (on failure)                                │
+│                     ┌─────────────┐                                       │
+│                     │ Classifier  │  rule-based → FailureClass + signals  │
+│                     └─────────────┘                                       │
+│                            │                                              │
+│                            ▼                                              │
+│   ┌──────────────────────────────────────────────────────────────────┐    │
+│   │  Reports                                                         │    │
+│   │   • HTML  (badge on failed step)   • JSON  (failureClass field)  │    │
+│   │   • JUnit                          • CSV                         │    │
+│   │   • diagnosis-history/*.json  ──── (opt-in telemetry sidecar)    │    │
+│   │   • trace.zip                 ──── (opt-in trace capture)        │    │
+│   └──────────────────────────────────────────────────────────────────┘    │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼  (later, on demand)
+┌────────────────────────────────────────────────────────────────────────────┐
+│  pgwen diagnose                                                            │
+│                                                                            │
+│   --rules-only ─▶ reads results.json ───▶ rule-based Markdown               │
+│   --annotate   ─▶ reads diagnosis-history/ ─▶ prompts → writes back        │
+│   --report     ─▶ reads diagnosis-history/ + cache/ ─▶ aggregate Markdown  │
+│   (no flag)    ─▶ AI pipeline (below) ───▶ AI-assisted Markdown            │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘</code></pre>
+
+    <h2 id="ai-flow">Per-pattern AI flow <a href="#ai-flow" class="anchor">#</a></h2>
+
+    <p>
+      Before the AI pipeline runs, failures are <strong>grouped by fingerprint</strong>
+      (classification class + locator binding file:line + selector strategy + selector
+      value). One representative per group is sent to Claude on behalf of all members;
+      the resulting <code>DiagnoseOutput</code> is fanned out to every group instance
+      and the per-entry <code>instances</code> list carries downstream to
+      <code>@pgwen/fix</code>. 500 scenarios failing on the same broken locator cost
+      one Claude call, not 500. See
+      <a href="diagnose.html#pattern-grouping">Diagnose → Pattern-level grouping</a>
+      for the fingerprint composition + the <code>--no-pattern-grouping</code>
+      escape hatch.
+    </p>
+
+    <p>
+      For each group representative, the orchestrator
+      (<code>AiPipeline.runAiDiagnose</code>) walks through every cost lever before
+      talking to Claude. A gate that says "no" short-circuits with a
+      <code>skipped</code> result + a reason — the user-facing report makes it obvious
+      why a call didn't happen.
+    </p>
+
+    <pre class="diagram"><code>  FailureToDiagnose
+        │
+        ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  Build bundle                                                        │
+  │    • extract pre-failure DOM from trace.zip   (TraceExtractor)       │
+  │    • find binding via meta-file index         (LocatorIndex)         │
+  │    • git log -p --no-merges -n5               (GitDiff)              │
+  │    • scrub PII                                (Scrubber)             │
+  │    • assemble + cap to 25 KB soft / 50 KB hard (Assembler)           │
+  └──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼  bundle hash = SHA-256(canonical JSON)
+  ┌────────────────────┐
+  │ ResponseCache?     │ ──── hit ─────▶ return cached DiagnoseOutput
+  │ (7-day TTL)        │
+  └────────────────────┘
+        │ miss
+        ▼
+  ┌────────────────────┐
+  │ RateLimit?         │ ──── no ──────▶ skip (reason = "rate-limited")
+  │ (30 / 5 min)       │
+  └────────────────────┘
+        │ ok
+        ▼
+  ┌────────────────────┐
+  │ Cost estimate      │
+  │ (bytes/3 tokens)   │
+  └────────────────────┘
+        │
+        ▼
+  ┌────────────────────┐
+  │ BudgetGate?        │ ──── over ────▶ skip (reason = "per-run cap exceeded")
+  │ (per-run + per-day)│
+  └────────────────────┘
+        │ ok
+        ▼
+  ┌────────────────────┐
+  │ buildPrompt        │  ◀── prompt cache (system + tool block ephemeral)
+  │   • model routing  │
+  │   • tool_choice    │
+  │     forced         │
+  └────────────────────┘
+        │
+        ▼
+  ┌────────────────────┐
+  │ ClaudeClient       │  ◀── fetch(/v1/messages)
+  │   • retry 429/5xx  │      • retry-after honoured
+  │   • parse tool_use │      • no SDK dep
+  └────────────────────┘
+        │
+        ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │ Record actual cost  ─▶  BudgetGate ledger (JSONL per day)            │
+  │ Save to ResponseCache  (with tokens + model for analysis)            │
+  └──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  AiPipelineResult { source: "fresh", output, model, costUsd, … }</code></pre>
+
+    <h2 id="cost">Cost levers <a href="#cost" class="anchor">#</a></h2>
+
+    <p>
+      Every lever below is on by default; the AI track is opt-in but the cost
+      controls aren't optional.
+    </p>
+
+    <table>
+      <thead><tr><th>Lever</th><th>Mechanism</th><th>Typical effect</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1. Rule-based short-circuit</td>
+          <td>High-confidence rule classifications can skip Claude entirely (caller's choice).</td>
+          <td>Eliminates 30–60% of calls.</td>
+        </tr>
+        <tr>
+          <td>2. Local response cache</td>
+          <td>SHA-256 of canonical bundle → diagnose output, 7-day TTL.</td>
+          <td>Flaky scenario = 1 call per week, not per failed run.</td>
+        </tr>
+        <tr>
+          <td>3. Prompt caching</td>
+          <td><code>cache_control: ephemeral</code> on system + tool block.</td>
+          <td>~90% off cached tokens within Anthropic's 5-minute window.</td>
+        </tr>
+        <tr>
+          <td>4. Confidence-tier model routing</td>
+          <td><code>medium → Haiku</code>, <code>low/unknown → Sonnet</code>. Opus opt-in only.</td>
+          <td>Sonnet is ~$0.027/call typical; Haiku is ~$0.009.</td>
+        </tr>
+        <tr>
+          <td>5. Output token cap</td>
+          <td><code>max_tokens = 800</code> default (DiagnoseOutput ≈ 300–500 tokens).</td>
+          <td>Caps worst-case output spend.</td>
+        </tr>
+        <tr>
+          <td>6. Bundle hard cap</td>
+          <td>25 KB soft / 50 KB hard via binary-search DOM trim.</td>
+          <td>~6–12k input tokens typical.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Tune everything from <code>pgwen.conf</code> under <code>pgwen.diagnose.ai.*</code>
+      — see <a href="settings.html#diagnose-ai">Settings → AI-assisted diagnose</a>.
+    </p>
+
+    <h2 id="bundle">What goes in the bundle <a href="#bundle" class="anchor">#</a></h2>
+
+    <p>
+      The focused failure bundle — the JSON payload Claude actually sees — is the §11
+      core of the strategy. It's tight by construction: a single failing step, a single
+      locator, no unrelated scenarios, no network logs.
+    </p>
+
+    <pre class="diagram"><code>DiagnoseInput
+├─ failing         { feature, scenario, step text + keyword, error class + msg }
+├─ locator         { binding name, strategy, selector value, file:line, ±5 context }
+├─ artifacts       { trace_zip_path, dom_excerpt (≤10 KB), screenshot_path }
+├─ context         { target_env, browser, viewport, sibling_scenarios[] }
+└─ history         { recent_diffs (git log -p -n5), prior_pgwen_fix_marker }</code></pre>
+
+    <p>The <strong>locator</strong> field gets populated by <code>LocatorIndex</code>:</p>
+
+    <ol>
+      <li>For each loaded meta file, scan for declarations matching <code>&lt;name&gt; can be located by &lt;strategy&gt; "&lt;value&gt;"</code>.</li>
+      <li>Index by binding name.</li>
+      <li>For each failing step, pick the <strong>longest</strong> binding name that appears as a whole-word match in the step text. Avoids "submit" eating "submit button".</li>
+      <li>Slice ±5 lines around the binding line from the meta file's source.</li>
+      <li>If no name matches, emit <code>locator: null</code> rather than guess.</li>
+    </ol>
+
+    <p>The <strong>history.recent_diffs</strong> field gets populated by <code>GitDiff</code>:</p>
+
+    <ol>
+      <li>Files passed: the feature file plus the binding file (when LocatorIndex found one).</li>
+      <li>Command: <code>git log -p --no-merges -n5 -- &lt;files&gt;</code> via <code>child_process.execFile</code> (no shell).</li>
+      <li>UTF-8-safe byte-cap at 8 KB.</li>
+      <li>Missing git binary, non-repo directory, exec errors → empty string, never throw.</li>
+    </ol>
+
+    <p>
+      Both enrichments answer the same real-world question: <em>did the test change or did the app change?</em>
+      The selector + recent commit history tell that story without the on-call dev
+      grepping.
+    </p>
+
+    <h2 id="privacy">Privacy — PII scrubber <a href="#privacy" class="anchor">#</a></h2>
+
+    <p>
+      The scrubber runs <em>before</em> the bundle leaves the local machine and
+      <em>before</em> the cap-trim, so byte budgeting reflects post-scrub content.
+    </p>
+
+    <pre class="diagram"><code>Raw bundle           Scrubber              Post-scrub bundle
+─────────────  ──▶  ┌────────────────┐  ─▶  ─────────────
+                    │ • JWT          │
+                    │ • Email        │
+                    │ • Card (Luhn)  │
+                    │ • AU mobile    │
+                    │ • 1300/1800    │
+                    │ • E.164 phone  │
+                    │ • extra regex  │
+                    └────────────────┘</code></pre>
+
+    <p>
+      Default rules are organisation-independent. Projects add domain-specific patterns
+      via <code>pgwen.diagnose.ai.scrubber.extra = ["regex1", "regex2"]</code> — for
+      example an internal customer-number format or an account-ID prefix. Matches are
+      replaced with <code>[REDACTED-&lt;TYPE&gt;]</code>; the marker carries no
+      characters that any other rule would match, so passes are order-safe.
+    </p>
+
+    <h2 id="boundary">§14 module boundary — <code>@pgwen/fix</code> <a href="#boundary" class="anchor">#</a></h2>
+
+    <p>
+      Patching lives in a separate peer package (<code>@pgwen/fix</code>). The
+      structural boundary is enforced by a build-time test that grep-scans
+      <code>src/</code> for any import of <code>@pgwen/fix</code> — diagnose can
+      never silently invoke fix because the import does not exist.
+    </p>
+
+    <p>
+      <strong>Status:</strong> Both modes are now shipped.
+    </p>
+    <ul>
+      <li>
+        <em>Suggest-only mode</em> (default) — reads
+        <code>pgwen diagnose --json-out</code> output and writes structured
+        JSON + unified-diff patches + a self-contained HTML report under
+        <code>reports/pgwen-fix/</code>. No source files or branches are
+        modified.
+      </li>
+      <li>
+        <em>Auto-apply mode</em> (<code>--auto-apply</code>) — per-entry
+        pipeline <code>validateMinimumDiff → detectPriorPgwenFix →
+        applyMachineProposal</code>. Rewrites the line, creates a
+        <code>pgwen-fix/&lt;slug&gt;-&lt;utc&gt;</code> branch, commits. Local
+        only — never pushes, never opens a PR. Activation requires an
+        explicit <code>--auto-apply</code> flag; <strong>§18 governance
+        answers gate the production deploy</strong>, not the code itself.
+      </li>
+    </ul>
+    <p>
+      The repeat-fix circuit breaker (<code>detectPriorPgwenFix</code>) walks
+      <code>git log --grep=pgwen-fix -- &lt;file&gt;</code> and refuses
+      auto-apply when the same line has been auto-rebound twice — catches
+      the case where the AI's first heal was wrong.
+    </p>
+
+    <pre class="diagram"><code>┌───────────────────────────┐         ┌───────────────────────────┐
+│  @pgwen/core              │         │  @pgwen/fix               │
+│                           │         │                           │
+│  • Classifier             │         │  Suggest-only mode (v1):  │
+│  • FailureFingerprint     │         │   • PatchApplier (diff)   │
+│  • Assembler              │         │   • MinimumDiffValidator  │
+│  • Scrubber               │         │   • RepeatFixDetector     │
+│  • Prompt                 │         │   • SuggestionWriter      │
+│  • ClaudeClient           │  ⊘──▶   │   • HtmlReport            │
+│  • AiPipeline             │  no     │   • GithubCommenter       │
+│  • BudgetGate             │  edge   │   • CLI: pgwen-fix        │
+│  • RateLimit              │         │                           │
+│  • ResponseCache          │         │  Skeleton (§18-gated):    │
+│  • TraceExtractor         │         │   • applyMachineProposal  │
+│  • LocatorIndex           │         │     (branch / PR mode)    │
+│  • GitDiff                │         │                           │
+│  • HistoryWriter          │         │  Required mirror type:    │
+│  • AnalysisReport         │         │   DiagnoseOutput +        │
+│                           │         │   FixInputEntry           │
+│                           │         │   (declared locally, not  │
+│                           │         │   imported from core)     │
+│  • Annotate               │         │                           │
+│  • CLI: pgwen diagnose    │         │                           │
+└───────────────────────────┘         └───────────────────────────┘</code></pre>
+
+    <h2 id="mock-adapter">Offline mode — <code>MockAdapter</code> <a href="#mock-adapter" class="anchor">#</a></h2>
+    <p>
+      Every AI flow (<code>pgwen new</code>, <code>pgwen diagnose</code>,
+      <code>@pgwen/fix</code>) is exercisable with NO Anthropic API key
+      through the bundled <code>MockAdapter</code>.
+    </p>
+    <p>
+      Opt in by setting <code>--provider mock</code> or
+      <code>PGWEN_AI_PROVIDER=mock</code>. The adapter loads canned
+      responses from a JSON fixture file (inline objects supported for
+      unit tests). Use cases:
+    </p>
+    <ul>
+      <li><strong>Local development before an API key is provisioned</strong> — run the full flow end-to-end without burning credit.</li>
+      <li><strong>CI</strong> — exercise the AI surface in pull requests without sharing keys.</li>
+      <li><strong>Demos</strong> — show stakeholders how diagnose / fix / new work without making live calls.</li>
+      <li><strong>Snapshot tests</strong> — lock the prompt body shape against drift (see <a href="../ai-prompts.md">docs/ai-prompts.md</a> for the prompt audit + edit workflow).</li>
+    </ul>
+    <p>
+      Eight golden fixtures ship at <code>fixtures/ai-mock/</code> — one
+      per Claude <code>DiagnoseCategory</code>, plus a <code>pgwen new</code>
+      interview fixture and a combined router. See
+      <code>fixtures/ai-mock/README.md</code> for the schema.
+    </p>
+    <p>
+      Mock is <strong>not</strong> in the production
+      <code>AiProvider</code> enum — it's a deliberate escape hatch
+      gated <em>before</em> <code>resolveProvider()</code>, so production
+      code paths that switch on provider see only real values when mock
+      isn't requested.
+    </p>
+
+    <h2 id="heal">Runtime self-heal — Phase 3 <a href="#heal" class="anchor">#</a></h2>
+    <p>
+      <code>src/heal/</code> is a structurally complete locator-rebind
+      pipeline (gate → bundle → prompt → AI call → confidence floor →
+      validator → cache → telemetry) callable end-to-end via
+      <code>MockAdapter</code>. Strict opt-in via
+      <code>pgwen.heal.enabled = true</code> — defaults to off.
+    </p>
+    <p>
+      <strong>Phase 3.6b is deferred:</strong> threading
+      <code>HealPipeline.attempt()</code> through
+      <code>PlaywrightRunner</code> action-site timeouts is a separate
+      refactor with material parity risk. The strategy doc
+      (<code>pgwen-ai-heal-strategy.md</code>) gates the merge on
+      <code>@pgwen/fix</code> production validation with measured
+      FP-rate &lt; 2%. Phases 3.7–3.12 (HTML badges, persist mode,
+      <code>@NoHeal</code> annotation, docs, rollout) follow.
+    </p>
+
+    <h2 id="config">Configuration reference <a href="#config" class="anchor">#</a></h2>
+
+    <pre><code>pgwen.diagnose {
+  enabled         = false      # reserved (legacy gate; AI gate is below)
+  history.enabled = false      # opt-in: write per-failure sidecars
+
+  ai {
+    enabled = false            # opt-in: enable Claude-backed diagnose
+
+    api {
+      keyEnv      = "ANTHROPIC_API_KEY"   # env var name (configurable)
+      "key:masked" = "sk-ant-..."         # fallback — `:masked` is REQUIRED
+    }
+
+    cost {
+      perRunUsd = 0            # 0 = unlimited; e.g. 2 → $2/run cap
+      perDayUsd = 0            # 0 = unlimited; e.g. 10 → $10/day cap
+    }
+
+    rate {
+      callsPerWindow = 30
+      windowMs       = 300000  # 5 minutes
+    }
+
+    pricing {                  # per-model overrides (top of DEFAULT_PRICING)
+      "claude-haiku-4-5-20251001" {
+        output = 4.50          # negotiated rate, USD per MTok
+      }
+    }
+
+    scrubber {
+      enabled = true           # PII scrubber on by default
+      extra   = []             # extra regex patterns per project
+    }
+  }
+}</code></pre>
+
+    <p>
+      <code>PGWEN_AI_DISABLED=1</code> in the environment is a master kill switch —
+      short-circuits every diagnose-track write regardless of config. Use it for
+      incident response.
+    </p>
+
+    <h2 id="related">Related pages <a href="#related" class="anchor">#</a></h2>
+    <ul>
+      <li><a href="diagnose.html"><code>pgwen diagnose</code> CLI usage</a></li>
+      <li><a href="settings.html#diagnose-ai">Settings — AI-assisted diagnose</a></li>
+      <li><a href="reports.html">Reports — failure classification badge</a></li>
+    </ul>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#end-to-end">End-to-end</a></li>
+      <li><a href="#ai-flow">Per-failure flow</a></li>
+      <li><a href="#cost">Cost levers</a></li>
+      <li><a href="#bundle">Bundle contents</a></li>
+      <li><a href="#privacy">PII scrubber</a></li>
+      <li><a href="#boundary">@pgwen/fix boundary</a></li>
+      <li><a href="#config">Configuration</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Diagnose</h4><ul><li><a href="diagnose.html">CLI usage</a></li><li><a href="ai-pipeline.html">AI pipeline</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>

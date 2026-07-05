@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pgwen new — Project scaffolder</title>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="new-project">
+
+<header class="site-header">
+  <a class="site-logo" href="../index.html"><span class="logo-mark">p</span>pgwen</a>
+  <nav class="site-nav"></nav>
+  <div class="spacer"></div>
+  <div class="search-box">
+    <input id="search-input" type="search" placeholder="Search docs..." autocomplete="off">
+    <div id="search-results" class="search-results"></div>
+  </div>
+</header>
+
+<div class="site-body">
+  <aside class="sidebar"></aside>
+
+  <main class="content">
+    <div class="breadcrumb">Docs / Guides / pgwen new</div>
+    <h1>pgwen new — Claude-powered project scaffolder</h1>
+    <p>
+      <code>npx pgwen new</code> is an interactive terminal utility that asks a
+      small set of questions about a new project (capped at 12 total — anything
+      it can't ask about goes into a <code>TODO.md</code> for you to fill in
+      later), calls your chosen AI provider with the answers, proposes a
+      <strong>blueprint</strong> you must approve, and only then writes the
+      project repository baseline to disk: feature, meta, conf, package.json,
+      README, optional TODO.md, and an initial git commit.
+    </p>
+
+    <div class="callout note">
+      <strong>Consumer command:</strong> <code>npx pgwen new</code> (or
+      <code>yarn pgwen new</code>, or <code>pnpm pgwen new</code>) — space, not
+      colon. The colon variant <code>pgwen:new</code> only appears inside the
+      pgwen framework's own <code>package.json</code> as a dev shorthand and is
+      not what end users type. See
+      <a href="installation.html#bin">Installation → pgwen command</a>.
+    </div>
+
+    <div class="callout note">
+      <strong>It's a starting point, not a finished project.</strong>
+      Generated Gherkin and locators will need a manual pass before a real run.
+      Treat the output like a senior author's first draft — useful structure, but
+      always review the meta locators and feature scenarios. Anything the wizard
+      couldn't answer ends up in <code>TODO.md</code> as a checklist.
+    </div>
+
+    <h2 id="prerequisites">Prerequisites <a href="#prerequisites" class="anchor">#</a></h2>
+    <ul>
+      <li>Working pgwen install (see <a href="installation.html">Installation</a>)</li>
+      <li>An API key for your chosen AI provider — defaults to Claude (<code>ANTHROPIC_API_KEY</code>). See <a href="#providers">Providers</a> below for OpenAI / Azure OpenAI / GitHub Copilot.</li>
+      <li>A template project repo to copy fixed files from. The path is configurable via <code>--template &lt;path&gt;</code>; the utility falls back to a sibling directory if not given.</li>
+    </ul>
+
+    <h2 id="run">Run it <a href="#run" class="anchor">#</a></h2>
+    <pre><code>export ANTHROPIC_API_KEY="sk-ant-..."
+npx pgwen new
+
+# Pick a different AI provider (default is Claude):
+export OPENAI_API_KEY="sk-..."
+npx pgwen new --provider openai
+
+# Pin the provider via env instead of the flag — convenient for CI:
+export PGWEN_AI_PROVIDER=openai
+npx pgwen new
+
+# Modes (--mode flag):
+#   guided  (default)  step-by-step questions with help text
+#   paste              skip the granular questions; paste one requirements blob
+#   expert              sensible defaults; only ask project name + paste block
+npx pgwen new --mode paste
+
+# Or override the template + output paths:
+npx pgwen new --template ../path/to/your-template --output ../
+
+# Inline your organisation's conventions (login flow, results tracking, naming):
+npx pgwen new --conventions ./org-conventions.md
+
+# Feed requirements documents (repeatable — .md / .txt / .pdf; file or directory):
+npx pgwen new --doc ./requirements.pdf --doc ./docs/specs/
+
+# Feed meeting transcripts / notes (repeatable):
+npx pgwen new --transcript ./kickoff-transcript.md
+
+# Mimic the shape of an existing pgwen project (naming, meta layout, profiles):
+npx pgwen new --reference-project ../my-earlier-project
+
+# Pull a URL as a reference (HTML → text, or application/pdf):
+npx pgwen new --doc-url https://example.com/api-spec
+
+# Bypass the hard context-window guard (~100k-token cap) when your provider handles more:
+npx pgwen new --doc ./enormous-spec.pdf --allow-oversized</code></pre>
+
+    <h2 id="reference-materials">Reference materials <a href="#reference-materials" class="anchor">#</a></h2>
+    <p>
+      Beyond the interactive Q&amp;A, the wizard accepts <strong>five kinds of external reference</strong>
+      that are injected into Claude's system prompt in dedicated, labelled blocks. Each kind carries a
+      guidance line telling Claude how to weight it:
+    </p>
+    <table>
+      <thead><tr><th>Flag</th><th>Repeatable</th><th>Kind</th><th>How Claude weights it</th></tr></thead>
+      <tbody>
+        <tr><td><code>--conventions &lt;path&gt;</code></td><td>no (file or dir)</td><td>Design conventions</td><td>MUST be honoured — overrides the generic defaults.</td></tr>
+        <tr><td><code>--doc &lt;path&gt;</code></td><td>yes (file or dir)</td><td>Requirements documentation</td><td>Extract explicit requirements, acceptance criteria, edge cases.</td></tr>
+        <tr><td><code>--transcript &lt;path&gt;</code></td><td>yes (file or dir)</td><td>Meeting transcripts / notes</td><td>Weight speaker intent and consensus decisions; ignore off-topic chatter.</td></tr>
+        <tr><td><code>--reference-project &lt;path&gt;</code></td><td>no (dir)</td><td>Reference project pattern</td><td>Mimic the shape — naming, capability distribution, StepDef style. Do NOT copy scenarios verbatim.</td></tr>
+        <tr><td><code>--doc-url &lt;url&gt;</code></td><td>yes</td><td>External web references</td><td>Treat as documentation the user has explicitly cited.</td></tr>
+      </tbody>
+    </table>
+    <p>Supported file types for <code>--conventions</code>, <code>--doc</code>, <code>--transcript</code>: <code>.md</code>, <code>.markdown</code>, <code>.txt</code>, <code>.pdf</code>, <code>.docx</code>. Directories are walked recursively; <code>node_modules</code>, <code>.git</code>, <code>dist</code>, <code>coverage</code>, <code>.cache</code>, <code>.yarn</code> are skipped. Per-file limit: 5 MB / 500 000 chars post-extraction. Aggregate soft-warns at ~40 k tokens, hard-fails at ~100 k tokens (override with <code>--allow-oversized</code>).</p>
+    <p><em>DOCX text is extracted via a built-in ZIP + XML reader — no external dependencies. Password-protected documents are refused with a clear error.</em></p>
+
+    <h2 id="providers">AI providers <a href="#providers" class="anchor">#</a></h2>
+    <p>
+      pgwen new (and <code>pgwen diagnose</code> — see <a href="diagnose.html">Diagnose</a>) talks to AI through a common adapter
+      layer. Pick the provider via <code>--provider &lt;name&gt;</code>,
+      <code>PGWEN_AI_PROVIDER</code> env, or
+      <code>pgwen.diagnose.ai.provider</code> config (precedence in that order;
+      default <code>claude</code>). Each provider needs its own API-key env var:
+    </p>
+    <table>
+      <thead><tr><th>Provider</th><th>Key env var</th><th>Extras</th></tr></thead>
+      <tbody>
+        <tr><td><code>claude</code> (default)</td><td><code>ANTHROPIC_API_KEY</code></td><td>—</td></tr>
+        <tr><td><code>openai</code></td><td><code>OPENAI_API_KEY</code></td><td>—</td></tr>
+        <tr><td><code>azure-openai</code></td><td><code>AZURE_OPENAI_API_KEY</code></td><td>Also requires <code>AZURE_OPENAI_DEPLOYMENT</code>, <code>AZURE_OPENAI_API_VERSION</code> (default <code>2024-08-01-preview</code>), and one of <code>AZURE_OPENAI_RESOURCE</code> or <code>AZURE_OPENAI_BASE_URL</code>.</td></tr>
+        <tr><td><code>copilot</code></td><td><code>GITHUB_TOKEN</code></td><td>Adapter exchanges the GitHub PAT for a short-lived Copilot bearer.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="question-cap">Question cap (12) + TODO.md <a href="#question-cap" class="anchor">#</a></h2>
+    <p>
+      pgwen new asks at most <strong>12 questions total</strong> across the whole
+      session — enough to anchor the design, few enough that non-technical
+      authors don't get fatigue. Anything the AI couldn't ask about (or chose
+      not to, because answering wouldn't materially change the design) goes
+      into the blueprint's <code>todos</code> array. After you approve the
+      blueprint, those entries are written to <code>TODO.md</code> at the project
+      repo root as a <code>- [ ]</code> checklist:
+    </p>
+
+    <pre><code># TODO — my-project
+
+This project was scaffolded by `pgwen new`. The items below are things the AI
+could NOT infer from the questionnaire and need your manual attention
+before the project will work end-to-end.
+
+Tick each box once done. Anything you discard, delete the line.
+
+- [ ] Set pgwen.notifications.slack.webhookUrl in pgwen/conf/env/prod.json to the
+      channel you want failure pings in (#your-alerts-channel recommended).
+- [ ] Add the SSO secret to .env as PORTAL_SSO_TOKEN. The project's
+      login step reads it at runtime.</code></pre>
+
+    <p>
+      The cap is enforced client-side. If the AI keeps asking, the CLI prints
+      a <code>⚠ Question cap reached</code> notice and forces the next turn to
+      emit a blueprint with TODOs for the unknowns. Per-question UI also shows
+      <code>(question N/12)</code> so you can pace expectations.
+    </p>
+
+    <h2 id="flow">Conversation flow <a href="#flow" class="anchor">#</a></h2>
+    <p>
+      Every run progresses through up to four kinds of Claude turn before
+      generation. The CLI mode (<code>guided</code> / <code>paste</code> /
+      <code>expert</code>) only changes how many questions Claude needs to
+      ask — the <strong>blueprint approval step is mandatory in every mode</strong>.
+    </p>
+
+    <ol>
+      <li>
+        <strong>Project type (asked first).</strong> Claude must determine
+        whether the project is <code>web-ui</code>, <code>api</code>,
+        <code>rpa</code>, or <code>mixed</code> before doing anything else.
+        Other questions branch off this answer. <code>rpa</code> is the typical
+        automation pattern: CSV-in, orchestration steps, results-out, often headless.
+      </li>
+      <li>
+        <strong>Batched questions (up to 6 per turn).</strong> Whenever 2+
+        unrelated answers are missing, Claude bundles them so you answer once
+        per round-trip rather than once per question.
+      </li>
+      <li>
+        <strong>Warnings (proactive).</strong> If Claude spots a risk before
+        generating (high-volume run without <code>--parallel</code>; secrets
+        without <code>:masked</code>; etc.), it surfaces a warning with concrete
+        next-step options — including <em>Accept and continue</em>.
+      </li>
+      <li>
+        <strong>Blueprint (mandatory).</strong> Before any files are written,
+        Claude emits a structured blueprint covering folder structure, selected
+        capabilities (✓), excluded capabilities (·), npm/yarn scripts,
+        sample-file previews, CI/CD, assumptions, and ⚠ risks. The CLI prompts
+        <em>"Approve this blueprint? (Y/n)"</em>. Reject and you can dictate
+        revisions; Claude regenerates the blueprint. Only after explicit approval
+        does Claude emit the <code>ready</code> response.
+      </li>
+    </ol>
+
+    <div class="callout note">
+      <strong>The blueprint gate is unconditional.</strong> If Claude attempts
+      to skip straight to file generation (even in <code>--mode expert</code>),
+      the CLI intercepts the response and asks Claude to emit a blueprint first.
+      The CLI never writes files without an approved blueprint on record for
+      the current session.
+    </div>
+
+    <h2 id="questions">Questions you might be asked <a href="#questions" class="anchor">#</a></h2>
+    <p>The exact list depends on your <code>--conventions</code> file and how
+       much context the requirements blob already supplies — Claude only asks
+       what it genuinely needs. Common topics covered:</p>
+    <table>
+      <thead><tr><th>Topic</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Project type</td><td><code>web-ui</code> / <code>api</code> / <code>rpa</code> / <code>mixed</code> — always asked first when missing</td></tr>
+        <tr><td>Project repo name</td><td><code>todomvc-project</code></td></tr>
+        <tr><td>One-line description</td><td><em>"Adds a TodoMVC item, marks it complete, and asserts the count"</em></td></tr>
+        <tr><td>Plain-English requirements</td><td>Free text — paste the ticket, the spec, the screenshot description, whatever you have</td></tr>
+        <tr><td>Screenshot file paths (optional, comma-separated)</td><td>Sent as multimodal content to Claude</td></tr>
+        <tr><td>Environments</td><td>1 = test+prod, 2 = test only, 3 = prod only</td></tr>
+        <tr><td>Optional integration flags</td><td>y/n for each integration your template supports (object storage, scheduling, etc.)</td></tr>
+        <tr><td>Cron-scheduled?</td><td>y/n; if yes, the cron expression (e.g. <code>0 6 * * 1-5</code>)</td></tr>
+        <tr><td>CSV input feed?</td><td>y/n; if yes, the CSV column names</td></tr>
+        <tr><td>Manual daily rate</td><td><code>360 / minutes_per_record</code>. Default 36 (10 min per record).</td></tr>
+        <tr><td>Notification channel(s)</td><td>Where success/failure alerts go in your messaging tool</td></tr>
+        <tr><td>Template path / output parent directory</td><td>Auto-detected; override to use a non-default template</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="blueprint">Reviewing the blueprint <a href="#blueprint" class="anchor">#</a></h2>
+    <p>
+      The blueprint renders as a structured panel with sections grouped by
+      pgwen blue (<code>#1f23ae</code>) headers. It looks roughly like this:
+    </p>
+
+    <pre><code>  ┌─ Blueprint ────────────────────────────────────────────────────────
+  │ A project that searches an account by number and verifies the result
+  │
+  │ Folder structure:
+  │   account-project/
+  │     pgwen.conf
+  │     package.json
+  │     pgwen/
+  │       features/Example.feature
+  │       meta/Example.meta
+  │       conf/env/{test,prod}.json
+  │       input/input-feed.csv
+  │
+  │ Selected capabilities:
+  │   ✓ CSV-driven data feed
+  │   ✓ @Try wrapping on the search step
+  │   ✓ Cron schedule (0 6 * * 1-5)
+  │   ✓ Notification webhook (email / chat platform) on test + prod
+  │
+  │ Excluded capabilities:
+  │   · Parallel mode — daily volume below 1000 records
+  │   · :masked secrets — no inline credentials in this project
+  │
+  │ Scripts:
+  │   pgwen: pgwen -p Example
+  │   pgwen:dryRun: pgwen -p Example -bn
+  │   pgwen:repl: pgwen --repl
+  │
+  │ Sample files:
+  │   pgwen/features/Example.feature
+  │       Feature: An account is searched - ${RECORD_ID}
+  │         Scenario: ...
+  │   pgwen/meta/Example.meta
+  │       Feature: Example meta
+  │         @StepDef Scenario: ...
+  │
+  │ CI/CD:
+  │   Pipeline (Jenkins / GitHub Actions / Azure Pipelines) with daily 06:00 trigger; notify via webhook on failure.
+  │
+  │ Assumptions:
+  │   · Test env URL lives in conf/env/test.json
+  │   · Account-number field has a stable data-test-id attribute
+  │
+  │ Risks:
+  │   ⚠ Locator selectors are heuristic — review before first run
+  │   ⚠ No retry beyond the @Try wrapper; consider @Retry if upstream flakes
+  └────────────────────────────────────────────────────────────────────
+  Approve this blueprint? (Y/n)</code></pre>
+
+    <p>Answer <code>n</code> and type your revisions — Claude regenerates the blueprint with your feedback applied. Approve to proceed to file generation.</p>
+
+    <h3 id="dry-run-without-key">Drive the wizard offline (no API key) <a href="#dry-run-without-key" class="anchor">#</a></h3>
+    <p>
+      Before you have an Anthropic key on a machine, you can still walk
+      the wizard end-to-end against the bundled <code>MockAdapter</code>.
+      Useful for demos, CI, or local development:
+    </p>
+    <pre><code>PGWEN_AI_PROVIDER=mock \
+PGWEN_AI_MOCK_FIXTURES=./fixtures/ai-mock/new-project-interview.json \
+yarn pgwen new --project-name example-csv-uploader \
+               --description "Upload a CSV to the test portal and verify the row"</code></pre>
+    <p>
+      The <code>new-project-interview.json</code> fixture covers a canonical
+      4-turn flow: question → blueprint → ready (with the full file
+      map). Once an API key arrives, set
+      <code>ANTHROPIC_API_KEY=&lt;key&gt;</code> + drop the
+      <code>PGWEN_AI_*</code> overrides and the same CLI runs against
+      live Claude with identical I/O contract (snapshot-tested in
+      <code>tests/unit/cli/NewProjectPrompt.snapshot.test.ts</code>).
+    </p>
+
+    <h3 id="step-snippet">A scenario from a real generated project <a href="#step-snippet" class="anchor">#</a></h3>
+    <p>
+      <code>pgwen new</code> generates feature + .meta pairs. The
+      .feature stays a thin user-flow narrative; the .meta carries the
+      reusable <code>@StepDef</code> bodies:
+    </p>
+<pre><code># pgwen/features/upload.feature
+@Examples(file='pgwen/input/uploads.csv')
+Feature: Upload CSV to portal
+
+  Scenario Outline: upload &lt;filename&gt; and verify
+    Given I log in to the portal
+     When I upload "&lt;filename&gt;" via the portal
+     Then the result row can be located by xpath "//tr/td[contains(text(),'&lt;filename&gt;')]"
+      And the result row should be displayed
+      And @Finally @Try I clean up "&lt;filename&gt;"</code></pre>
+<pre><code># pgwen/meta/Upload.meta
+Feature: Upload meta
+
+  @StepDef @Context
+  Scenario: I upload "&lt;file&gt;" via the portal
+    Given the file input can be located by css "input[type='file']"
+      And the submit button can be located by id "upload-submit"
+     When I send file "pgwen/input/$&lt;file&gt;" to the file input
+      And I click the submit button</code></pre>
+
+    <h2 id="generated">What gets generated <a href="#generated" class="anchor">#</a></h2>
+    <p>Output lands at <code>&lt;output-parent&gt;/&lt;project-name&gt;/</code>. The exact layout depends on the template, but a typical structure is:</p>
+    <pre><code>&lt;project-name&gt;/
+├── pgwen.conf                     ← HOCON settings, project-specific
+├── package.json                   ← scripts (pgwen, pgwen:dryRun, …), name + description
+├── README.md                      ← Claude-generated overview
+├── Jenkinsfile / azure-pipelines.yml ← CI templates (whichever the template provides)
+└── pgwen/
+    ├── features/
+    │   └── &lt;BotName&gt;.feature    ← Claude-generated scenarios
+    ├── meta/
+    │   ├── &lt;BotName&gt;.meta       ← Claude-generated StepDefs + locators
+    │   ├── App.meta               ← copied from template (shared app login etc.)
+    │   └── Results.meta           ← copied from template
+    ├── conf/
+    │   ├── env/
+    │   │   ├── test.json          ← notification channels, app URLs
+    │   │   └── prod.json
+    │   ├── browsers/              ← copied from template
+    │   └── profiles/              ← per-integration profile files if flagged
+    ├── input/.gitkeep
+    └── output/                    ← (gitignored)</code></pre>
+
+    <p>The new directory is initialised as a git repo with one initial commit so you can branch off immediately.</p>
+
+    <div class="callout note">
+      <strong>Naming convention</strong>
+      Output uses pgwen-canonical layout (<code>pgwen.conf</code>, <code>pgwen/</code> subdir,
+      <code>pgwen.*</code> settings). No <code>pgwen migrate</code> step needed before the
+      first run.
+    </div>
+
+    <h2 id="api-and-cost">Claude API call <a href="#api-and-cost" class="anchor">#</a></h2>
+    <ul>
+      <li>Raw HTTPS POST to <code>https://api.anthropic.com/v1/messages</code> — no SDK dependency.</li>
+      <li>Model: <code>claude-sonnet-4-6</code>.</li>
+      <li>The system prompt carries pgwen DSL knowledge, the project-type axis, the batched-questions contract, the mandatory blueprint gate, and the template's project conventions (auth pattern, results pattern, conf structure, output-format contract).</li>
+      <li>The user message contains the structured Q&amp;A context plus the free-text requirements (and any screenshots as base64 multimodal content blocks).</li>
+      <li>Claude returns one of four shapes per turn — <code>question</code> (singular <em>or</em> batched <code>questions[]</code>), <code>warning</code>, <code>blueprint</code>, or <code>ready</code>. The CLI dispatches on <code>type</code>; only a <code>ready</code> response preceded by an approved blueprint causes files to be written.</li>
+    </ul>
+
+    <h2 id="after">After generation <a href="#after" class="anchor">#</a></h2>
+    <p>The utility prints "Next steps" pointing you at the files most likely to need a tuning pass:</p>
+    <ol>
+      <li>Review locators in <code>pgwen/meta/&lt;BotName&gt;.meta</code> — Claude's selector guesses are heuristic, not validated.</li>
+      <li>Update <code>pgwen/conf/env/*.json</code> with real channel names and app URLs.</li>
+      <li>Add your input data to <code>pgwen/input/input-feed.csv</code>.</li>
+      <li>Run <code>yarn pgwen:dryRun</code> to validate every step resolves.</li>
+    </ol>
+
+    <h2 id="troubleshooting">Troubleshooting <a href="#troubleshooting" class="anchor">#</a></h2>
+    <table>
+      <thead><tr><th>Symptom</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>ANTHROPIC_API_KEY environment variable not set</code></td><td>Export the env var before running, or add it to your shell rc.</td></tr>
+        <tr><td><code>Template directory not found</code></td><td>Pass <code>--template &lt;path&gt;</code> pointing at a known good project repo.</td></tr>
+        <tr><td>Claude returns malformed JSON</td><td>Re-run; the system prompt enforces JSON-only output but transient API issues occasionally slip through. The Q&amp;A answers are not persisted between runs, so save your requirements to a file if you want to retry without re-typing.</td></tr>
+        <tr><td>Generated step "Undefined step" on dryRun</td><td>The project uses a DSL pattern pgwen doesn't yet implement. Cross-check against the <a href="dsl.html">DSL reference</a>. The most common gap is condition vocabulary (<code>is blank</code> / <code>is defined</code> / <code>should be true</code>) — see the callout on the DSL page.</td></tr>
+      </tbody>
+    </table>
+  </main>
+
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul>
+      <li><a href="#prerequisites">Prerequisites</a></li>
+      <li><a href="#run">Run it</a></li>
+      <li><a href="#flow">Conversation flow</a></li>
+      <li><a href="#questions">Questions</a></li>
+      <li><a href="#blueprint">Reviewing the blueprint</a></li>
+      <li><a href="#generated">What gets generated</a></li>
+      <li><a href="#api-and-cost">Claude API call</a></li>
+      <li><a href="#after">After generation</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><h4>pgwen</h4><ul><li><a href="dsl.html">DSL</a></li><li><a href="settings.html">Settings</a></li><li><a href="cli.html">CLI</a></li></ul></div>
+    <div><h4>Built on</h4><ul><li><a href="https://playwright.dev/" target="_blank">Playwright</a></li><li><a href="https://github.com/cucumber/gherkin" target="_blank">Gherkin</a></li></ul></div>
+    <div><h4>Browser support</h4><ul><li>Chromium · Firefox · WebKit</li></ul></div>
+  </div>
+  <div class="copyright">© pgwen documentation</div>
+</footer>
+
+<script src="../assets/js/layout.js"></script>
+<script src="../assets/js/search.js"></script>
+</body>
+</html>
