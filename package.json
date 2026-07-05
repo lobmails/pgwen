@@ -6,8 +6,9 @@
   "author": "The pgwen authors",
   "private": false,
   "files": [
-    "dist",
+    "dist/",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "NOTICE",
     "SECURITY.md",
