@@ -14,6 +14,28 @@
     "SECURITY.md",
     ".env.example"
   ],
+  "keywords": [
+  "playwright",
+  "bdd",
+  "gherkin",
+  "cucumber",
+  "typescript",
+  "automation",
+  "test-automation",
+  "automation-framework",
+  "playwright-framework",
+  "playwright-bdd",
+  "api-testing",
+  "process-automation",
+  "acceptance-testing",
+  "regression-testing",
+  "ui-testing",
+  "cli",
+  "ai",
+  "ai-testing",
+  "ai-test-automation",
+  "ai-assisted-testing"
+  ],
   "exports": {
     ".": {
       "require": "./dist/index.js",
