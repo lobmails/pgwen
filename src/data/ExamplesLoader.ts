@@ -1,7 +1,7 @@
 /**
  * data/ExamplesLoader.ts — External @Examples file loading for Scenario Outlines.
  *
- * the reference framework allows Scenario Outlines to pull their example rows from an external
+ * allows Scenario Outlines to pull their example rows from an external
  * CSV or JSON file via the @Examples annotation:
  *
  *   @Examples('pgwen/data/accounts.csv')
@@ -142,9 +142,9 @@ function interpolateFilePath(filePath: string, context: Record<string, string>):
 // ─── Where clause filtering ───────────────────────────────────────────────────
 
 /**
- * Filter records using a the reference framework where expression.
+ * Filter records using a where expression.
  *
- * the reference framework where clauses are JavaScript expressions evaluated after substituting
+ * where clauses are JavaScript expressions evaluated after substituting
  * column values into the expression. Two substitution forms are supported:
  *
  *   1. `${COLUMN}` syntax: the column value is interpolated before eval.
@@ -201,7 +201,7 @@ function evaluateWhere(where: string, record: JsonDataRecord): boolean {
     }
 
     // Step 3: Convert standalone = to == for JS evaluation.
-    // Handles the the reference framework shorthand `column = 'value'` syntax.
+    // Handles the shorthand `column = 'value'` syntax.
     // Must not convert: !=  ==  >=  <=
     expr = expr.replace(/(?<![!<>=])=(?!=)/g, '==');
 

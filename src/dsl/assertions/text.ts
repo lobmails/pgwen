@@ -233,7 +233,7 @@ export function registerTextAssertions(registry: DslRegistry): void {
 
   // <textRef> should[ not] match template
   // Template content comes from the docstring body (pgwen._step_docstring).
-  // This is the primary real-the reference framework form for multi-line API response/body templates.
+  // This is the primary real-form for multi-line API response/body templates.
   // Named <placeholder> tokens in the template are bound into scope on match.
   reg.register(
     /^(.+) should (not )?match template$/i,
@@ -388,7 +388,7 @@ export function registerTextAssertions(registry: DslRegistry): void {
 
   // <name> should be absent
   // Passes when the named binding does NOT exist in scope (is undefined).
-  // Mirrors the reference framework's "should be absent" behaviour for scope variables and locators.
+  // Preserves "should be absent" behaviour for scope variables and locators.
   reg.register(
     /^(.+) should be absent$/i,
     async ([refName], scope) => {
@@ -589,7 +589,7 @@ export function registerTextAssertions(registry: DslRegistry): void {
  *  1. Playwright locator binding — returns element text/input value.
  *  2. Scope variable — returns bound string value.
  *  3. Quoted literal — single- or double-quoted string treated as inline value.
- *  4. Unbound reference → throws (mirrors the reference framework's "Unbound reference: X" error).
+ *  4. Unbound reference → throws (Preserves "Unbound reference: X" error).
  *     This means typos like RECORD_IDD (not in scope) fail explicitly, both in
  *     dry-run and live execution, instead of silently passing.
  */

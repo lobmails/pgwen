@@ -6,7 +6,7 @@
  * feature run completes with a failed status, before the browser context is
  * closed.
  *
- * Output path convention (mirrors the reference framework):
+ * Output path convention (mirrors ):
  *   <outputDir>/reports/html/attachments/screenshots/<slug>.png
  */
 

@@ -4,7 +4,7 @@
  * Generates a standalone results.csv summary file — one row per scenario — that
  * is useful for post-run analysis, trending dashboards, and data pipelines.
  *
- * Column layout (mirrors the reference framework's results CSV structure):
+ * Column layout (Preserves results CSV structure):
  *   Feature, FeatureFile, Scenario, Tags, Status, DurationMs, Error
  *
  * Output:

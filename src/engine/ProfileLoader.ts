@@ -1,8 +1,8 @@
 /**
  * ProfileLoader.ts — Load layered HOCON / JSON / .properties config files.
  *
- * the reference framework's config hierarchy (lowest → highest precedence):
- *   7. the reference framework defaults (built-in)
+ * config hierarchy (lowest → highest precedence):
+ *   7. defaults (built-in)
  *   6. pgwen.conf  (project root)
  *   5. -c conf-file (launch settings)
  *   4. -p profileName → conf/profiles/<name>.conf
@@ -18,7 +18,7 @@
  *   .json        → standard JSON
  *   .properties  → Java-style key=value
  *
- * HOCON subset supported (covers all known the reference framework config patterns):
+ * HOCON subset supported (covers all known config patterns):
  *   - Block objects:        key { ... }
  *   - Key-value:            key = value  or  key: value
  *   - Nested dot keys:      pgwen.web.wait.seconds = 10

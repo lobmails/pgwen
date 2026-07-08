@@ -1,7 +1,7 @@
 /**
  * playwright/filechooser.ts — File chooser DSL steps.
  *
- * Playwright-exclusive DSL (no WebDriver-style/the reference framework equivalent).
+ * Playwright-exclusive DSL (no WebDriver-style/equivalent).
  *
  * Registers these step patterns:
  *   I select file "<path>" in file chooser

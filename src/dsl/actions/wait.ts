@@ -75,7 +75,7 @@ export function registerWaits(registry: DslRegistry): void {
   );
 
   // I wait until "<javascript>"   (short form — no "is true" suffix)
-  // the reference framework projects use this form: @Timeout('60s') I wait until "$('#el').is(':visible')"
+  // projects use this form: @Timeout('60s') I wait until "$('#el').is(':visible')"
   reg.register(
     /^I wait until "(.+)"$/i,
     async ([script], _scope, page) => {

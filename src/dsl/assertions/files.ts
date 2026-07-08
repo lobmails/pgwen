@@ -6,7 +6,7 @@
  *   the file "<filepath>" should[ not] be empty
  *   the file "<filepath>" should[ not] contain "<text>"
  *
- * the reference framework alias forms (used in project meta files):
+ * alias forms (used in project meta files):
  *   "<path>" file should[ not] exist
  *   "<path>" file should[ not] be empty
  *   <binding> file should[ not] exist      ← binding resolves to path
@@ -77,8 +77,8 @@ export function registerFileAssertions(registry: DslRegistry): void {
     }
   );
 
-  // ─── the reference framework alias forms ────────────────────────────────────────────────────────
-  // These match how the reference framework projects actually write file assertions in .meta files.
+  // ─── alias forms ────────────────────────────────────────────────────────
+  // These match how projects actually write file assertions in .meta files.
   // Registered before the generic binding form so specificity is preserved.
 
   // "<path>" file should[ not] exist

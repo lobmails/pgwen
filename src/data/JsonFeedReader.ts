@@ -152,7 +152,7 @@ function flattenInto(
  * Call once per record before executing the feature/scenario for that record.
  *
  * @param readOnly When true, column bindings are locked as read-only. Mirrors
- *   the reference framework's pgwen.input.data.readOnly=true default.
+ *   pgwen.input.data.readOnly=true default.
  */
 export function bindJsonRecordToScope(
   record: JsonDataRecord,

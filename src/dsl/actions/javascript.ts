@@ -1,7 +1,7 @@
 /**
  * actions/javascript.ts — JS execution steps (standalone + element-scoped).
  *
- * the reference framework-form patterns:
+ * -form patterns:
  *   I execute <javascript|js> "<script>"               — page.evaluate
  *   I execute <javascript|js> on <element> "<function>" — element.evaluate
  *   I execute <functionRef> on <element>               — resolve ref, then

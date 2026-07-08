@@ -77,7 +77,7 @@ export interface ReplOptions {
   /**
    * Path to input data feed CSV (e.g. pgwen.launch.options.inputData).
    * When specified, the REPL pre-loads the first record into scope so variables like
-   * RECORD_ID are available immediately — matching the reference framework REPL behaviour.
+   * RECORD_ID are available immediately — matching REPL behaviour.
    */
   dataFeed?: string;
   /** Loaded pgwen.conf + profile config — makes ${configKey} resolvable in REPL steps. */
@@ -116,7 +116,7 @@ export interface ReplOptions {
   breakpointAt?: string;
 }
 
-// History file persists across sessions (the reference framework behaviour: up/down recall from previous session)
+// History file persists across sessions (behaviour: up/down recall from previous session)
 const HISTORY_FILE = path.join(os.homedir(), '.pgwen_repl_history');
 const HISTORY_MAX = 500;
 
@@ -270,7 +270,7 @@ export class Repl {
       }
     }
 
-    // Pre-load first CSV record into feature scope (the reference framework REPL behaviour).
+    // Pre-load first CSV record into feature scope (REPL behaviour).
     // Skipped in breakpoint mode — the live scope already has all feed bindings.
     if (!isBreakpoint && options.dataFeed) {
       try {
@@ -419,7 +419,7 @@ export class Repl {
           lineChain = lineChain.then(async () => {
             // ─── Non-TTY paste mode — accumulate lines until Ctrl+D ──────
             if (pasteMode) {
-              const DOCSTRING_RE = /^\s*"""/; // matches both """ (standard Gherkin) and """" (the reference framework)
+              const DOCSTRING_RE = /^\s*"""/; // matches both """ (standard Gherkin) and """" ()
               if (DOCSTRING_RE.test(line)) {
                 if (!inDocstring) {
                   // Opening """" — append opening quote to the preceding step line
@@ -515,7 +515,7 @@ export class Repl {
             // TTY paste editor requested — resolve so outer loop can run it.
             resolve();
           } else if (pasteMode) {
-            // Non-TTY Ctrl+D while in paste mode → execute accumulated steps (the reference framework behaviour: fail-fast)
+            // Non-TTY Ctrl+D while in paste mode → execute accumulated steps (behaviour: fail-fast)
             pasteMode = false;
             inDocstring = false; // reset in case of aborted docstring
             // Inline assembly already merged """" blocks; mergeDocstrings is a
@@ -525,11 +525,11 @@ export class Repl {
             // Lazy proxy: browser only launches when a step actually touches the page.
             const pastePage = makeLazyPageProxy(ctx.ensurePage, ctx.currentPage) as ReplPage;
             for (const step of steps) {
-              // Echo the step (matching the reference framework paste-mode format: no pgwen> prefix)
+              // Echo the step (matching paste-mode format: no pgwen> prefix)
               out.write(`\r${step}\n\n`);
               const failed = await this.executeStep(step, compositor, pastePage, out);
               out.write('\n');
-              // Fail-fast: stop executing remaining steps if one fails (matches the reference framework behaviour)
+              // Fail-fast: stop executing remaining steps if one fails (preserves behaviour)
               if (failed) break;
             }
             pasteBuffer.length = 0;
@@ -954,8 +954,8 @@ export class Repl {
     }
 
     // ─── Gherkin step execution ───────────────────────────────────────────────
-    // Only execute lines that start with a Gherkin keyword (matching the reference framework behaviour).
-    // Lines without a keyword get "Unknown input or command", same as the reference framework REPL.
+    // Only execute lines that start with a Gherkin keyword (matching behaviour).
+    // Lines without a keyword get "Unknown input or command", same as REPL.
     if (!this.keywordRe.test(line)) {
       out.write(`  Unknown input or command\n`);
       return 'continue';
@@ -968,7 +968,7 @@ export class Repl {
   }
 
   /**
-   * Handle the `env [flags] ["filter"]` command — print scope in the reference framework format.
+   * Handle the `env [flags] ["filter"]` command — print scope format.
    *
    * env           — show all visible (non-internal) bindings from all layers
    * env -a        — same as env (all layers, all entries)
@@ -1036,7 +1036,7 @@ export class Repl {
    * Returns true if the step FAILED (used by paste-mode fail-fast to stop execution).
    * Returns false if passed, abstained, or skipped.
    *
-   * Output format (matching the reference framework REPL):
+   * Output format (matching REPL):
    *   [Xms] ✔           — passed
    *   [Xms] Abstained   — if-guard condition not met (skipped, counted as passed)
    *   [Xms] ✘           — failed
@@ -1069,14 +1069,14 @@ export class Repl {
         this.printChildren(result.children, out, '  ');
       }
 
-      // Status line matches the reference framework format (with ANSI colors on TTY)
+      // Status line preserves format (with ANSI colors on TTY)
       if (status === 'failed') {
         const err = result?.error;
         out.write(`  ${colors.red(`[${durationMs}ms] Failed \u2718`)}\n`);
         if (err) out.write(`  ${colors.red(err.message)}\n`);
         return true; // failed → paste-mode should stop
       } else if (result?.abstained) {
-        // if-guard condition was false → the reference framework shows "Abstained" in cyan
+        // if-guard condition was false → shows "Abstained" in cyan
         out.write(`  ${colors.cyan(`[${durationMs}ms] Abstained`)}\n`);
       } else {
         out.write(`  ${colors.green(`[${durationMs}ms] \u2714`)}\n`);
@@ -1093,7 +1093,7 @@ export class Repl {
 
   /**
    * Recursively print child steps of a StepDef invocation.
-   * Matches the reference framework REPL format: each body step on its own line with indentation
+   * Matches REPL format: each body step on its own line with indentation
    * and a status icon (✓ pass / x fail / - skip). Nested StepDef calls recurse
    * with additional indentation so the full execution tree is visible.
    */
@@ -1112,7 +1112,7 @@ export class Repl {
         out.write(`${indent}${kw} ${displayText}\n`);
         this.printChildren(child.children!, out, indent + '  ');
       } else {
-        // Leaf step — show with status icon and timing (the reference framework format, colored)
+        // Leaf step — show with status icon and timing (format, colored)
         const timing = child.durationMs !== undefined ? ` [${child.durationMs}ms]` : '';
         if (child.status === 'failed') {
           out.write(`${indent}${kw} ${displayText}${timing}  ${colors.red('\u2718')}\n`);
@@ -1143,7 +1143,7 @@ export class Repl {
  * Merge pgwen-style multiline docstring blocks from a paste buffer into
  * single step lines (standard behaviour for multi-line JS and other values).
  *
- * the reference framework paste syntax:
+ * paste syntax:
  *   And @Eager yesterday is defined by js
  *       """"
  *       () => { ... }
@@ -1158,7 +1158,7 @@ export class Repl {
  * non-empty assembled steps.
  */
 function mergeDocstrings(rawLines: string[]): string[] {
-  const DOCSTRING = /^\s*"""/; // matches both """ (standard Gherkin) and """" (the reference framework)
+  const DOCSTRING = /^\s*"""/; // matches both """ (standard Gherkin) and """" ()
   const result: string[] = [];
   let i = 0;
 
@@ -1223,7 +1223,7 @@ function saveHistory(history: string[]): void {
 const HELP_TEXT = `
   pgwen REPL commands:
 
-    env                       Show all scope bindings (the reference framework format)
+    env                       Show all scope bindings (format)
     env -a                    Show all scope bindings across all layers
     env -f                    Show feature-level scope bindings
     env "filter"              Show bindings whose name contains filter
@@ -1251,7 +1251,7 @@ const HELP_TEXT = `
  * Creates a transparent proxy around `ensurePage` so that the browser is only
  * launched when a DSL handler actually calls a method on the page object.
  * Steps that only touch scope (variable assignments, string assertions, etc.)
- * complete without ever opening a browser — matching the reference framework's REPL behaviour.
+ * complete without ever opening a browser — matching REPL behaviour.
  *
  * Sync page accessors that the DSL uses directly:
  *   • url()          — returns real URL if page is open, else ''

@@ -1,7 +1,7 @@
 /**
  * capture/pdf.ts — PDF text capture DSL steps.
  *
- * Implements the reference framework-compatible patterns for extracting text content from PDFs.
+ * Implements -compatible patterns for extracting text content from PDFs.
  * Supports file paths, URLs, and base64-encoded PDF blobs from scope bindings.
  *
  * Registered patterns:

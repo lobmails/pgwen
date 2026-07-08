@@ -1,7 +1,7 @@
 /**
  * StepAnnotationParser.ts — Parse inline step annotations from step text.
  *
- * In the reference framework, the body steps of a StepDef can carry inline execution annotations
+ * the body steps of a StepDef can carry inline execution annotations
  * as prefixes (and optionally a trailing @Message suffix):
  *
  *   @Finally I log out of Portal
@@ -57,7 +57,7 @@ export interface StepInlineAnnotations {
   /** Dry-run substitution value for this step — legacy positional form @DryRun('value'). */
   dryRunValue?: string;
   /**
-   * Named dry-run binding — the reference framework form @DryRun(name='var',value='val').
+   * Named dry-run binding — form @DryRun(name='var',value='val').
    * The variable `dryRunName` is injected into scope with the first of `dryRunValues`
    * BEFORE step interpolation during dry runs, so ${dryRunName} resolves correctly.
    */
@@ -75,12 +75,12 @@ export interface StepInlineAnnotations {
   isAbstract: boolean;
   /**
    * Trim whitespace from both sides of the actual and expected values before
-   * comparison. the reference framework step-level annotation: applies to the single decorated
+   * comparison. step-level annotation: applies to the single decorated
    * step. Mirrors the StepDef-level `@Trim` flag for parity.
    */
   isTrim: boolean;
   /**
-   * Compare strings case-insensitively. the reference framework step-level annotation: applies
+   * Compare strings case-insensitively. step-level annotation: applies
    * to the single decorated step. Mirrors the StepDef-level `@IgnoreCase`
    * flag for parity.
    */
@@ -162,7 +162,7 @@ export function parseStepInlineAnnotations(text: string): StepInlineAnnotations 
 const VALID_INLINE_ANNOTATIONS = new Set([
   'Finally', 'Try', 'Eager', 'Lazy', 'Masked', 'Soft', 'Sustained', 'Hard',
   'Breakpoint', 'Timeout', 'Delay', 'DryRun', 'Message',
-  // Comparison modifiers — the reference framework step-level annotations applied per assertion.
+  // Comparison modifiers — step-level annotations applied per assertion.
   'Trim', 'IgnoreCase',
   // Passthrough — handled by DSL patterns, not by the strip logic.
   // `@DateTime` and `@Number` both prefix `I format … from … to … as …`
@@ -260,7 +260,7 @@ function stripTrailingMessage(text: string, result: StepInlineAnnotations): stri
       );
     }
 
-    // Trailing @DryRun(...) — the reference framework named form or legacy positional
+    // Trailing @DryRun(...) — named form or legacy positional
     const trailingDryRun = /\s+@DryRun\(([^)]+)\)\s*$/i.exec(remaining);
     if (trailingDryRun) {
       applyDryRunArgs(trailingDryRun[1]!, result);

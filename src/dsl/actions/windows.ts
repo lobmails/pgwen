@@ -250,7 +250,7 @@ export function registerWindowActions(registry: DslRegistry): void {
 
   // I switch to (the )?child (window|tab)
   //
-  // Matches the reference framework's `switchToChild` semantics: switch to
+  // Matches `switchToChild` semantics: switch to
   // the FIRST page AFTER the current one in the context's pages array, NOT
   // the last. Wraps in a waitUntil-style poll that retries until either a
   // child appears or `pgwen.web.wait.seconds` is exhausted — this handles

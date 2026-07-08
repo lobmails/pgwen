@@ -7,15 +7,17 @@ pgwen is a Playwright-based BDD framework for TypeScript. You describe what you 
 ```gherkin
 Feature: TodoMVC
 
-  Scenario: Add a todo and mark it done
-    Given I browse to "https://todomvc.com/examples/react/"
-     When I enter "First task" in the new-todo input
-      And I press "Enter"
-      And I click the checkbox for todo "First task"
-     Then todo "First task" should be completed
+  Scenario: Add a todo and see it in the list
+    Given the new-todo input can be located by class "new-todo"
+    And   the first todo item can be located by css ".todo-list li:first-child"
+    When  I navigate to "https://todomvc.com/examples/jquery/"
+    And   I enter "First task" in the new-todo input
+    Then  the first todo item should contain "First task"
 ```
 
-That's the whole test. No code file. Save it, run `pgwen`, get an HTML report.
+That's the whole test. No code file, no helpers, no separate bindings file. Save it, run `pgwen`, get an HTML report.
+
+Every step above is a real pgwen DSL primitive — see the [Manual start](#manual-start--hello-world-in-5-minutes) section for a full walkthrough.
 
 ---
 
@@ -144,7 +146,7 @@ npx pgwen new
 
 The wizard asks up to 12 questions (project type, name, description, environments, whether you have a CSV feed, etc.), proposes a **blueprint** you review + approve, and writes the project files. Anything it couldn't figure out lands in `TODO.md` for you to fill in later.
 
-Prefer OpenAI or Azure OpenAI? Add `--provider openai` (needs `OPENAI_API_KEY`) or `--provider azure-openai` (needs `AZURE_OPENAI_*` — see [docs](docs/pages/new-project.html)).
+Prefer OpenAI or Azure OpenAI? Add `--provider openai` (needs `OPENAI_API_KEY`) or `--provider azure-openai` (needs `AZURE_OPENAI_*` — see [docs](https://pgwen.org/pages/new-project.html)).
 
 **Skipping AI entirely?** Continue to the manual start below.
 
@@ -152,7 +154,7 @@ Prefer OpenAI or Azure OpenAI? Add `--provider openai` (needs `OPENAI_API_KEY`) 
 
 ## Manual start — hello world in 5 minutes
 
-Create three files in your project folder.
+Create two files in your project folder.
 
 ### `pgwen.conf` — the base config
 
@@ -175,55 +177,61 @@ pgwen {
 }
 ```
 
-### `pgwen/features/hello.meta` — reusable step definitions
-
-```gherkin
-Feature: Bindings for the example.com hello test
-
-  @StepDef
-  Scenario: the page heading can be located by tag "h1"
-
-  @StepDef
-  Scenario: the primary link can be located by tag "a"
-```
-
-Each `@StepDef` teaches pgwen how to find an element. Format: `<friendly name> can be located by <locator-kind> "<locator-value>"`. Supported locator kinds: `id`, `name`, `css`, `xpath`, `tag`, `class`, `link text`, `partial link text`.
-
 ### `pgwen/features/hello.feature` — your scenario
 
 ```gherkin
 Feature: My first pgwen project
 
   Scenario: See the example.com heading
-    Given I browse to "https://example.com"
-     Then the page heading should contain "Example Domain"
-      And the primary link should contain "More information"
+    Given the page heading can be located by tag "h1"
+    And   the primary link can be located by tag "a"
+    When  I navigate to "https://example.com"
+    Then  the page heading should contain "Example Domain"
+    And   the primary link should contain "Learn more"
 ```
 
-That's the whole test. No JavaScript. Save all three files.
+That's the whole test. No JavaScript, no separate binding file. Each step is a real pgwen DSL primitive:
+
+- **`<name> can be located by <kind> "<value>"`** registers a locator binding you can reference by `<name>` in later steps. Supported `<kind>`s: `id`, `name`, `css`, `xpath`, `tag`, `class`, `link text`, `partial link text`.
+- **`I navigate to "<url>"`** opens the URL in the target browser.
+- **`<name> should contain "<text>"`** asserts the located element's text contains the given string. Companion forms: `should be`, `should not be`, `should not contain`, `should match regex`, `should start with`, `should end with`.
+
+Save the two files and skip to *Running your project*.
+
+> **Bigger projects:** as your suite grows, move reusable locator bindings and multi-step flows into a companion `pgwen/features/hello.meta` file — pgwen auto-loads a `*.meta` sitting next to a `*.feature` of the same name. See [Configuration profiles](https://pgwen.org/pages/profiles.html) for the full pattern.
 
 ---
 
 ## Running your project
 
-From your project folder:
+From your project folder, point pgwen at the feature file:
 
 ```
-npx pgwen
+npx pgwen pgwen/features/hello.feature
 ```
 
 pgwen opens a browser (because `headless = false`), loads example.com, checks the heading + link, writes a report, and closes.
+
+For projects with multiple features, group them under a profile (see [Configuration profiles](https://pgwen.org/pages/profiles.html)) and run `npx pgwen -p <profile>`. Multiple profiles can be launched sequentially in one command with `npx pgwen -p A,B,C` — each profile runs to completion, then the next, with a cross-profile summary at the end.
 
 You'll see console output like:
 
 ```
 Feature: My first pgwen project
-  Scenario: See the example.com heading
-    Given I browse to "https://example.com"                    Passed [1.2s]
-    Then the page heading should contain "Example Domain"      Passed [0.1s]
-    And the primary link should contain "More information"     Passed [0.1s]
 
-  Summary — 1/1 scenarios passed, 3/3 steps passed in 1.4s
+  Scenario: See the example.com heading
+
+    Given the page heading can be located by tag "h1"          [0ms] ✓
+      And the primary link can be located by tag "a"           [0ms] ✓
+     When I navigate to "https://example.com"              [1s 245ms] ✓
+     Then the page heading should contain "Example Domain"    [43ms] ✓
+      And the primary link should contain "Learn more"        [51ms] ✓
+
+             Passed  Failed  Sustained  Skipped  Pending
+  1 Scenario   1       -         -         -        -
+  5 Steps      5       -         -         -        -
+
+[1s 401ms] Passed ✓
 ```
 
 If a step fails, pgwen captures a screenshot and marks the failure with a category (e.g. `locator_drift`, `timeout`, `assertion`) that shows up in the report.
@@ -261,7 +269,7 @@ Everyone,Hi
 Feature: Greetings
 
   Scenario: Greet <NAME>
-    Given I browse to "https://example.com?greeting=${GREETING}%20${NAME}"
+    Given I navigate to "https://example.com?greeting=${GREETING}%20${NAME}"
      Then the page heading should contain "Example"
 ```
 
@@ -272,7 +280,7 @@ npx pgwen -i pgwen/input/greetings.csv
 
 pgwen runs the scenario once per row, expanding `${NAME}` / `${GREETING}` from each CSV column. Every row becomes an entry in `results-ALL.csv`.
 
-Supports JSON feeds too — see [Data-driven runs](docs/pages/data-driven.html).
+Supports JSON feeds too — see [Data-driven runs](https://pgwen.org/pages/data-driven.html).
 
 ---
 
@@ -281,7 +289,7 @@ Supports JSON feeds too — see [Data-driven runs](docs/pages/data-driven.html).
 ### Filling a form and clicking
 
 ```gherkin
-Given I browse to "https://example.com/signup"
+Given I navigate to "https://example.com/signup"
  When I enter "user@example.com" in the email input
   And I enter "password" in the password input
   And I click the "Sign up" button
@@ -314,7 +322,7 @@ Given I fetch https://api.example.com/status
   And the response body should contain "operational"
 ```
 
-See [DSL reference](docs/pages/dsl.html) for the full step vocabulary.
+See [DSL reference](https://pgwen.org/pages/dsl.html) for the full step vocabulary.
 
 ---
 
@@ -347,6 +355,36 @@ Add `--repl` — pgwen drops into an interactive REPL against the live browser a
 
 ---
 
+## Migrating from another BDD framework
+
+If your project already has feature/meta/config files written for a legacy BDD framework, pgwen ships a companion CLI that rewrites in place:
+
+```
+npx @pgwen/migrate ./path/to/your-project
+```
+
+It rewrites (in this order):
+
+- filesystem: `<legacy>.conf` → `pgwen.conf`, `<legacy>/` → `pgwen/`
+- HOCON: top-level block, dotted keys, `${…}` substitutions, `baseDir`
+- feature / meta: `${…}` substitutions, `env.*` references
+- `package.json`: script keys + values, CLI names, paths, env vars
+- `.env` and JSON env config files
+- CI pipeline files: `Jenkinsfile`, `azure-pipelines.yml`
+
+Add `--dry-run` (or `-n`) to preview changes without applying them. The migrator is idempotent — re-running on an already-migrated tree is a no-op.
+
+`@pgwen/migrate` lives inside this repo as a private sidecar package. Build it locally:
+
+```
+git clone <pgwen-repo>
+cd pgwen/pgwen-migrate
+yarn build
+node dist/cli.js --help
+```
+
+---
+
 ## Environment variables
 
 A full `.env.example` ships at the repo root. The variables pgwen consumes:
@@ -371,15 +409,15 @@ Any variable you don't set is either absent (feature disabled) or inherits pgwen
 
 ## Where to go next
 
-- **[Installation](docs/pages/installation.html)** — deeper install notes, Playwright browser setup, CI images
-- **[Your first project](docs/pages/first-project.html)** — a longer walkthrough (TodoMVC)
-- **[DSL reference](docs/pages/dsl.html)** — the full step vocabulary (~125 patterns)
-- **[Configuration](docs/pages/settings.html)** — every `pgwen.*` setting, profiles, browser overlays
-- **[CLI reference](docs/pages/cli.html)** — all flags and subcommands
-- **[Data-driven runs](docs/pages/data-driven.html)** — CSV, JSON, `Examples` tables
-- **[Debugging](docs/pages/debugging.html)** — REPL, breakpoints, dry-run
-- **[Reports](docs/pages/reports.html)** — HTML report layout + AI diagnosis
-- **[FAQ](docs/pages/faq.html)** — common questions
+- **[Installation](https://pgwen.org/pages/installation.html)** — deeper install notes, Playwright browser setup, CI images
+- **[Your first project](https://pgwen.org/pages/first-project.html)** — a longer walkthrough (TodoMVC)
+- **[DSL reference](https://pgwen.org/pages/dsl.html)** — the full step vocabulary (~125 patterns)
+- **[Configuration](https://pgwen.org/pages/settings.html)** — every `pgwen.*` setting, profiles, browser overlays
+- **[CLI reference](https://pgwen.org/pages/cli.html)** — all flags and subcommands
+- **[Data-driven runs](https://pgwen.org/pages/data-driven.html)** — CSV, JSON, `Examples` tables
+- **[Debugging](https://pgwen.org/pages/debugging.html)** — REPL, breakpoints, dry-run
+- **[Reports](https://pgwen.org/pages/reports.html)** — HTML report layout + AI diagnosis
+- **[FAQ](https://pgwen.org/pages/faq.html)** — common questions
 
 ---
 
@@ -388,6 +426,7 @@ Any variable you don't set is either absent (feature disabled) or inherits pgwen
 ```
 npx pgwen                              Run everything under pgwen/features/
 npx pgwen -p test                      Run with profile pgwen/conf/profiles/test.conf
+npx pgwen -p Nav,Search                Run Nav then Search sequentially (multi-profile)
 npx pgwen -i data.csv                  Feed CSV / JSON / Examples data
 npx pgwen --tags "@smoke"              Only run scenarios tagged @smoke
 npx pgwen --scenario "exact name"      Only run one scenario

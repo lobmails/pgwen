@@ -1,9 +1,9 @@
 /**
  * StringInterpolator.ts — Resolves ${...} expressions in pgwen step text.
  *
- * Resolution order (mirrors the reference framework exactly):
+ * Resolution order (Preserves exactly):
  *   1. Named binding in current scope
- *   2. the reference framework setting from loaded config (via settingsProvider)
+ *   2. setting from loaded config (via settingsProvider)
  *   3. Environment variable: ${env.VAR_NAME}
  *   4. Implicit value (via implicitProvider)
  *
@@ -28,7 +28,7 @@ import { toPosixPath } from '../util/paths';
  * Both are optional — omit for unit testing the interpolator in isolation.
  */
 export interface InterpolationProviders {
-  /** Look up a the reference framework setting (e.g. pgwen.web.wait.seconds) */
+  /** Look up a setting (e.g. pgwen.web.wait.seconds) */
   settings?: (key: string) => string | undefined;
   /** Look up an implicit pgwen.* value */
   implicit?: (key: string) => string | undefined;
@@ -51,7 +51,7 @@ export interface InterpolationProviders {
 // Examples: name.toUpperCase(), value.trim(), items.length
 const JS_METHOD_RE = /^(.+?)(\.[a-zA-Z_$][a-zA-Z0-9_$]*(?:\([^)]*\))?)$/;
 
-// Elvis operator: " ?: " (spaces required, matching the reference framework's exact syntax)
+// Elvis operator: " ?: " (spaces required, matching exact syntax)
 const ELVIS_SEPARATOR = ' ?: ';
 
 export class StringInterpolator {
@@ -116,7 +116,7 @@ export class StringInterpolator {
    * (`isMaskedSetting` returns true) are replaced with `*****`.
    *
    * This allows DSL handlers to receive the real value via `interpolate()` while
-   * reports show `*****` inline in the step text — matching the reference framework's behaviour.
+   * reports show `*****` inline in the step text — matching behaviour.
    */
   interpolateForDisplay(text: string): string {
     const parts = findPlaceholders(text);
@@ -269,7 +269,7 @@ export class StringInterpolator {
       return toPosixPath(require('os').tmpdir());
     }
 
-    // 3. the reference framework settings
+    // 3. settings
     const settingValue = this.providers.settings?.(key);
     if (settingValue !== undefined) {
       // Masked setting: show '*****' in display context, real value in execution context
@@ -380,7 +380,7 @@ export class StringInterpolator {
       return this.interpolate(inner);
     }
 
-    // Unquoted — treat as a bare string (the reference framework's fallback behaviour)
+    // Unquoted — treat as a bare string (fallback behaviour)
     return defaultExpr;
   }
 

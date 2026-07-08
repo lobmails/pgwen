@@ -126,7 +126,7 @@ export function registerFileActions(registry: DslRegistry): void {
   );
 
   // ─── pgwen-style write/append: to "<path>" file (no "the") ───────────────
-  //     the reference framework's exact syntax: I write "text" to "filepath" file
+  //     exact syntax: I write "text" to "filepath" file
   //     pgwen also keeps the "to the file" form above for backwards compat.
 
   // I write/append new line to "<filepath>" file  — before generic textRef form
@@ -305,7 +305,7 @@ export function registerFileActions(registry: DslRegistry): void {
           return;
         }
       }
-      // No match — leave binding unset (mirrors the reference framework behaviour)
+      // No match — leave binding unset (Preserves behaviour)
     }
   );
 

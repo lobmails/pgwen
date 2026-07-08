@@ -155,7 +155,7 @@ export interface RunOptions {
    * Loaded pgwen.conf + profile config flat map.
    * When provided, config keys (e.g. project.name, pgwen.web.wait.seconds) are
    * resolvable as ${key} in feature steps via StringInterpolator's settings
-   * provider — mirroring the reference framework's config-to-scope wiring.
+   * provider — mirroring config-to-scope wiring.
    */
   config?: Record<string, string>;
   /**
@@ -226,7 +226,7 @@ export interface RunOptions {
    * moving on to the next record. Receives the just-completed RunResult.
    * For non-feed features (single record) this fires once at the end.
    *
-   * Mirrors the reference framework's per-record streaming: reports update progressively for each
+   * Preserves per-record streaming: reports update progressively for each
    * CSV/JSON record rather than waiting for the whole batch to finish. May
    * return a promise; the runner awaits it before iterating the next record.
    */
@@ -259,7 +259,7 @@ export interface ScenarioRunResult {
   /**
    * The raw column-value pairs from the data feed record for this iteration.
    * Used by ConsoleReporter to print the "Background: Input data record" section
-   * with `@Data` binding lines (matching the reference framework console output).
+   * with `@Data` binding lines (matching console output).
    */
   dataFeedRecord?: Record<string, string>;
   /** Scenario execution duration in milliseconds. */
@@ -530,7 +530,7 @@ export class Runner {
         }
 
         // pgwen.state.level = "scenario" — clear feature-level bindings before each scenario
-        // so no state leaks between scenarios (mirrors the reference framework's per-scenario isolation mode)
+        // so no state leaks between scenarios (Preserves per-scenario isolation mode)
         if ((options.stateLevel ?? 'feature') === 'scenario') {
           scope.clear('feature');
         }
@@ -621,7 +621,7 @@ export class Runner {
       }
 
       // Bind pgwen.feature.eval.status.* for this record's execution so that
-      // ResultsReporter can read them (mirrors the reference framework's implicit value population).
+      // ResultsReporter can read them (Preserves implicit value population).
       const recordFailed = recordScenarios.some((r) => r.status === 'failed');
       const recordError = recordScenarios.find((r) => r.status === 'failed')?.error;
       const statusKeyword = recordFailed ? 'Failed' : 'Passed';
@@ -680,7 +680,7 @@ export class Runner {
       allResults.push(recordResult);
 
       // Per-record streaming hook — fire as soon as this record's result is
-      // finalised so reporters can emit progressively (matches the reference framework behaviour
+      // finalised so reporters can emit progressively (preserves behaviour
       // where each CSV record's HTML page appears as that record completes,
       // rather than waiting for the whole file to finish).
       if (options.onRecordComplete) {
@@ -874,7 +874,7 @@ export class Runner {
      * @ForEach on Scenario Outline: in addition to substituting <COLUMN> tokens in step
      * text (standard Outline behaviour), also bind each column value into the feature
      * scope as ${COLUMN} so body steps can reference column values via interpolation.
-     * This matches the reference framework's @ForEach/@DataTable semantics where rows are also scope-bound.
+     * This preserves @ForEach/@DataTable semantics where rows are also scope-bound.
      */
     bindColumnsToScope = false,
     ctx?: ExecutionContext,

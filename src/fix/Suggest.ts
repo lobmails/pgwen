@@ -56,7 +56,7 @@ export function runSuggestFix(
   const outcomes: SuggestFixOutcome[] = [];
 
   for (const entry of entries) {
-    const out = processEntry(entry, config, reportsDir, timestamp, dryRun);
+    const out = processEntry(entry, config, reportsDir, timestamp, dryRun, now);
     outcomes.push(out);
     if (!dryRun) {
       appendHistory(reportsDir, {
@@ -92,6 +92,7 @@ function processEntry(
   reportsDir: string,
   timestamp: string,
   dryRun: boolean,
+  now: Date,
 ): SuggestFixOutcome {
   const failure = entry.failure;
 
@@ -169,6 +170,7 @@ function processEntry(
       line: proposal.line,
       windowDays: config.repeatWindowDays,
       maxAttempts: config.repeatMaxAttempts,
+      now,
     })
   ) {
     return {

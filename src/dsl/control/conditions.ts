@@ -199,7 +199,7 @@ export async function evalCondition(
   }
 
   // Scope equality: <name> is [not] "<value>"  or  <name> is [not] <bare-token>
-  // the reference framework treats quoted and unquoted literals as equivalent — `x is "true"` and
+  // treats quoted and unquoted literals as equivalent — `x is "true"` and
   // `x is true` both mean "scope value of x equals the literal 'true'".
   // Positioned AFTER presenceMatch / stateMatch / contains / regex / format
   // checks so reserved keyword RHS values (defined, visible, …) don't get

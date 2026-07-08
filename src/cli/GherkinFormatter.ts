@@ -1,7 +1,7 @@
 /**
- * GherkinFormatter.ts — Format .feature and .meta files with canonical the reference framework indentation.
+ * GherkinFormatter.ts — Format .feature and .meta files with canonical indentation.
  *
- * Standard the reference framework indentation rules:
+ * Standard indentation rules:
  *   - Feature tags/header at column 0
  *   - Feature description lines at 2-space indent
  *   - Scenario / Background / Rule headings at 2-space indent
@@ -238,7 +238,7 @@ export class GherkinFormatter {
 function normalizeTrailingAnnotations(text: string): string {
   // Match 1+ whitespace followed by one or more @Name(...) groups at end-of-string.
   // Normalize the leading whitespace to exactly 3 spaces.
-  // [^)]*  — annotation args (parens are not nested in the reference framework annotations)
+  // [^)]*  — annotation args (parens are not nested annotations)
   return text.replace(
     /\s+(@\w+\([^)]*\)(?:\s+@\w+\([^)]*\))*)\s*$/i,
     '   $1'

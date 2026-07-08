@@ -2,7 +2,7 @@
  * actions/settings.ts — Runtime browser settings steps.
  *
  * Implements the DSL patterns for mutating browser-level settings at runtime.
- * These mirror the reference framework's `my <name> setting is "<value>"` / `I reset my <name> setting`.
+ * These mirror `my <name> setting is "<value>"` / `I reset my <name> setting`.
  *
  *   my pgwen.web.useragent setting is "<value>"   ← specific: sets User-Agent header
  *   I reset my pgwen.web.useragent setting        ← specific: clears User-Agent header
@@ -18,7 +18,7 @@ export function registerSettings(registry: DslRegistry): void {
   // my [pgwen|pgwen].web.useragent setting is "<value>"
   // Sets the User-Agent header for all subsequent navigation requests from this page.
   // Must be registered BEFORE the generic form so it takes precedence.
-  // Accepts both `pgwen.web.useragent` (pgwen) and `pgwen.web.useragent` (the reference framework projects).
+  // Accepts both `pgwen.web.useragent` (pgwen) and `pgwen.web.useragent` (projects).
   registry.register(
     /^my (?:pgwen|pgwen)\.web\.useragent (?:setting|property) is "(.+)"$/i,
     async ([value], scope, page) => {

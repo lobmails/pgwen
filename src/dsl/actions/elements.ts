@@ -1,7 +1,7 @@
 /**
  * actions/elements.ts — Element interaction steps.
  *
- * Implements the reference framework's complete element action DSL:
+ * Implements complete element action DSL:
  *   I click <element>
  *   I right click <element>
  *   I double click <element>
@@ -324,7 +324,7 @@ export function registerElementActions(registry: DslRegistry): void {
 
   // ─── Drag ───────────────────────────────────────────────────────────────────
 
-  // I drag and drop <source> to <target>   (the reference framework-form — registered before the
+  // I drag and drop <source> to <target>   (-form — registered before the
   // shorter `I drag <source> to <target>` so its more-specific "and drop"
   // prefix wins the match)
   reg.register(
@@ -414,7 +414,7 @@ async function decodeBase64From(
 // ─── Type helper (respects pgwen.web.sendKeys.clearFirst / clickFirst) ────────
 
 /**
- * Types text into a locator respecting the reference framework's sendKeys settings:
+ * Types text into a locator respecting sendKeys settings:
  *   pgwen.web.sendKeys.clearFirst  — default true  → fill() clears+sets; false → pressSequentially() appends
  *   pgwen.web.sendKeys.clickFirst  — default false → click element before typing when true
  */
@@ -462,7 +462,7 @@ async function typeText(
 
 // ─── Key normalisation helpers ────────────────────────────────────────────────
 
-/** Map the reference framework/WebDriver-style key names to Playwright key names. */
+/** Map /WebDriver-style key names to Playwright key names. */
 function normaliseModifier(mod: string): string {
   switch (mod.toUpperCase()) {
     case 'COMMAND': case 'META': return 'Meta';

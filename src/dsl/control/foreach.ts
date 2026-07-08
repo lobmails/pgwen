@@ -314,7 +314,7 @@ async function evalCondition(
     return Boolean(result);
   }
 
-  // Presence / shape checks (the reference framework vocabulary):
+  // Presence / shape checks (vocabulary):
   //   <name> is [not] defined / blank / empty
   // Must come BEFORE the equality check so the bare-keyword forms match first.
   // env.VAR_NAME prefix is honoured.
@@ -365,7 +365,7 @@ async function evalCondition(
   }
 
   // Scope equality: <name> is [not] "<value>"  or  <name> is [not] <bare-token>
-  // the reference framework treats quoted and unquoted literals as equivalent — `x is "true"` and
+  // treats quoted and unquoted literals as equivalent — `x is "true"` and
   // `x is true` both mean "scope value of x equals the literal 'true'". Mirror
   // of the same handler in dsl/control/conditions.ts; the two must stay in
   // sync (while/until/for-each guards reuse this evaluator).

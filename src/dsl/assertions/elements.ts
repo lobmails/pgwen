@@ -1,7 +1,7 @@
 /**
  * assertions/elements.ts — Element state and value assertion steps.
  *
- * Implements all the reference framework element assertion patterns:
+ * Implements all element assertion patterns:
  *   <element> should[ not] be displayed / hidden / visible
  *   <element> should[ not] be enabled / disabled
  *   <element> should[ not] be checked / unchecked / ticked / unticked

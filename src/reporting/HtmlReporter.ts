@@ -1,5 +1,5 @@
 /**
- * reporting/HtmlReporter.ts — Generate Bootstrap HTML reports the reference framework output format.
+ * reporting/HtmlReporter.ts — Generate Bootstrap HTML reports output format.
  *
  * Generates a directory structure:
  *   <outputDir>/
@@ -89,6 +89,14 @@ export interface StepTrace {
    * in the HTML report and as a dedicated field in `results.json`.
    */
   failureClass?: FailureClassification;
+  /**
+   * True when the step was demoted from failed→passed by @Sustained. The step
+   * still reports `status: 'passed'` for aggregation purposes, but the report
+   * renders a yellow "Sustained" badge and a red panel-danger error block
+   * inside the green passed step .
+   * Preserved from StepResult.sustained during toStepTrace.
+   */
+  sustained?: boolean;
 }
 
 export interface ScenarioTrace {
@@ -311,6 +319,7 @@ function toStepTrace(s: StepResult): StepTrace {
     durationMs: s.durationMs ?? 0,
   };
   if (s.line !== undefined) trace.line = s.line;
+  if (s.sustained) trace.sustained = true;
   if (s.error !== undefined) {
     trace.error = s.error.message;
     const ctorName = s.error.constructor?.name;
@@ -510,7 +519,7 @@ export function gatherAiInsights(outputDir: string): AiInsights | undefined {
 }
 
 /**
- * Render the AI Insights panel. Uses the reference framework Bootstrap-3 markup so it
+ * Render the AI Insights panel. Uses Bootstrap-3 markup so it
  * looks native, but is visually separated and labelled as the pgwen AI layer.
  */
 function renderAiInsightsPanel(ai: AiInsights | undefined): string {
@@ -982,10 +991,12 @@ export class HtmlReporter {
       attachmentMap: new Map(),
     };
 
-    // Count scenarios and steps
-    const scenarioStats = countStatuses(trace.scenarios.map((s) => s.status));
-    const allSteps = trace.scenarios.flatMap((s) => s.steps);
-    const stepStats = countStatuses(allSteps.map((s) => s.status));
+    // Count scenarios and steps (leaf steps only, so sustained-annotated
+    // failures inside StepDef bodies are counted correctly).
+    const scenarioStats = countStatuses(trace.scenarios.map((s) => ({ status: s.status })));
+    const allSteps: StepTrace[] = [];
+    for (const s of trace.scenarios) collectLeafSteps(s.steps, allSteps);
+    const stepStats = countStatuses(allSteps);
 
     // Meta section
     const metaSection = trace.metaFiles.length > 0
@@ -1356,8 +1367,9 @@ export class HtmlReporter {
       ? `<span class="grayed"><p><small>${step.annotations.map(escapeHtml).join('<br />')}</small></p></span>`
       : '';
 
-    // Failed StepDef panels start expanded (collapse in) so the error is immediately visible.
-    const collapseClass = hasChildren && step.status === 'failed'
+    // Failed StepDef panels start expanded so the error is immediately visible.
+    // Sustained StepDef panels do the same — the assertion message is the point.
+    const collapseClass = hasChildren && (step.status === 'failed' || step.sustained)
       ? 'panel-collapse collapse in'
       : 'panel-collapse collapse';
 
@@ -1390,11 +1402,21 @@ export class HtmlReporter {
               </div>`
       : '';
 
+    // Sustained steps carry the accumulated assertion error even though status
+    // is 'passed' — render it as a red panel-danger block so the message shows
+    // as red text inside the green passed step .
     const errorSection = step.error
       ? `
               <div class="panel panel-danger bg-danger" style="margin-top: 5px; margin-left: 50px; padding: 5px 10px;">
                 <small><code>${escapeHtml(step.error)}</code></small>
               </div>`
+      : '';
+
+    // Yellow "Sustained" badge shown next to the duration on sustained steps.
+    // Bootstrap 3 label-warning is yellow — kept inline so no CSS changes
+    // are needed in the shipped template.
+    const sustainedBadge = step.sustained
+      ? `<span class="label label-warning" style="margin-right: 6px;">Sustained</span>`
       : '';
 
     // Error anchor: attach a named anchor for failed steps with errors so summary can link directly.
@@ -1469,7 +1491,7 @@ export class HtmlReporter {
               <a name="${statusLabel(step.status)}-step-${collapseId}"></a>
               ${errorAnchor}
               <div class="bg-${sc}">
-                <span class="pull-right"><small>${formatDuration(step.durationMs)}</small></span>
+                <span class="pull-right"><small>${sustainedBadge}${formatDuration(step.durationMs)}</small></span>
                 <div class="line-no"><small class="unselectable">${lineNo}</small></div>
                 <div class="keyword-right" style="width:45px">
                   <strong>${escapeHtml(titleCase(step.keyword))}</strong>
@@ -1833,6 +1855,12 @@ interface StatusCounts {
   failed: number;
   skipped: number;
   pending: number;
+  /** Steps demoted from failed→passed by @Sustained. Counted as passed for
+   *  aggregation purposes, but surfaced separately here so the progress bar
+   *  and stats table can show a yellow "Sustained" segment.
+   *  Optional so pre-existing callers that build `StatusCounts` manually keep
+   *  working — buildProgressBar treats absent as 0. */
+  sustained?: number;
 }
 
 interface SummaryStats {
@@ -1841,23 +1869,40 @@ interface SummaryStats {
   steps: StatusCounts;
 }
 
+/** Recursively walk step traces, counting only leaf steps (steps without children). */
+function collectLeafSteps(steps: StepTrace[], out: StepTrace[]): void {
+  for (const s of steps) {
+    if (!s.children || s.children.length === 0) out.push(s);
+    else collectLeafSteps(s.children, out);
+  }
+}
+
 function buildSummary(traces: FeatureTrace[]): SummaryStats {
-  const features = countStatuses(traces.map((t) => t.status));
+  const features = countStatuses(traces.map((t) => ({ status: t.status })));
   const allScenarios = traces.flatMap((t) => t.scenarios);
-  const scenarios = countStatuses(allScenarios.map((s) => s.status));
-  const allSteps = allScenarios.flatMap((s) => s.steps);
-  const steps = countStatuses(allSteps.map((s) => s.status));
+  const scenarios = countStatuses(allScenarios.map((s) => ({ status: s.status })));
+  const allSteps: StepTrace[] = [];
+  for (const s of allScenarios) collectLeafSteps(s.steps, allSteps);
+  const steps = countStatuses(allSteps);
   return { features, scenarios, steps };
 }
 
-function countStatuses(statuses: string[]): StatusCounts {
-  const counts: StatusCounts = { total: statuses.length, passed: 0, failed: 0, skipped: 0, pending: 0 };
-  for (const s of statuses) {
-    if (s === 'passed') counts.passed++;
-    else if (s === 'failed') counts.failed++;
-    else if (s === 'skipped') counts.skipped++;
-    else if (s === 'pending') counts.pending++;
+/** Accepts either a bare status string list or a list of items carrying an
+ *  optional `sustained` flag. Sustained items are counted as passed AND as
+ *  sustained so downstream renderers can distinguish them. */
+function countStatuses(items: Array<{ status: string; sustained?: boolean }>): StatusCounts {
+  let sustained = 0;
+  const counts: StatusCounts = { total: items.length, passed: 0, failed: 0, skipped: 0, pending: 0, sustained: 0 };
+  for (const item of items) {
+    if (item.status === 'passed') {
+      counts.passed++;
+      if (item.sustained) sustained++;
+    }
+    else if (item.status === 'failed') counts.failed++;
+    else if (item.status === 'skipped') counts.skipped++;
+    else if (item.status === 'pending') counts.pending++;
   }
+  counts.sustained = sustained;
   return counts;
 }
 
@@ -1868,6 +1913,13 @@ function countStatuses(statuses: string[]): StatusCounts {
  */
 export function buildProgressBar(counts: StatusCounts): string {
   const { total, passed, failed, skipped, pending } = counts;
+  // Sustained is optional in older call sites — default to 0 so callers that
+  // pre-date the sustained progress-bar segment keep rendering unchanged.
+  const sustained = counts.sustained ?? 0;
+  // Sustained steps are counted inside `passed`; split them out so the green
+  // segment shows only non-sustained passes and the yellow segment shows
+  // sustained passes. matches progress bar.
+  const purePassed = Math.max(0, passed - sustained);
 
   function pct(n: number): string {
     return total === 0 ? '0.0%' : `${(n / total) * 100}%`;
@@ -1879,14 +1931,14 @@ export function buildProgressBar(counts: StatusCounts): string {
   }
 
   return `<div class="progress">
-    <div class="progress-bar progress-bar-success" style="width: ${pct(passed)};">
-      <span>${label(passed, 'Passed')}</span>
+    <div class="progress-bar progress-bar-success" style="width: ${pct(purePassed)};">
+      <span>${label(purePassed, 'Passed')}</span>
     </div>
     <div class="progress-bar progress-bar-danger" style="width: ${pct(failed)};">
       <span>${label(failed, 'Failed')}</span>
     </div>
-    <div class="progress-bar progress-bar-danger" style="width: ${pct(0)};">
-      <span>${label(0, 'Sustained')}</span>
+    <div class="progress-bar progress-bar-sustained" style="width: ${pct(sustained)}; background-color: #f0ad4e;">
+      <span>${label(sustained, 'Sustained')}</span>
     </div>
     <div class="progress-bar progress-bar-warning" style="width: ${pct(skipped)};">
       <span>${label(skipped, 'Skipped')}</span>
@@ -1915,7 +1967,7 @@ export function formatDuration(ms: number): string {
 }
 
 /**
- * Format a Date matching the reference framework's report format: "Mon Apr 27 23:28:40 AEST 2026"
+ * Format a Date matching report format: "Mon Apr 27 23:28:40 AEST 2026"
  * Pattern: EEE MMM dd HH:mm:ss <tz-short> yyyy
  */
 export function formatDate(date: Date): string {

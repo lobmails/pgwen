@@ -1,7 +1,7 @@
 /**
  * data/CsvFeedReader.ts — CSV data feed parsing and scope binding.
  *
- * Implements the reference framework's CSV data feed pattern:
+ * Implements CSV data feed pattern:
  *   - First row = column headers → become named bindings in scope
  *   - Each subsequent row = one feature/scenario execution
  *   - pgwen.data.record.number (1-based) and pgwen.data.record.index (0-based) set per row
@@ -75,7 +75,7 @@ export function parseCsvContent(content: string, options: CsvFeedOptions = {}): 
  * Call once per row before executing the feature/scenario for that record.
  *
  * @param readOnly   When true, column bindings are locked as read-only.
- *   Mirrors the reference framework's pgwen.input.data.readOnly=true default. The implicit
+ *   Preserves pgwen.input.data.readOnly=true default. The implicit
  *   pgwen.data.record.* values are always writeable.
  * @param maskFields Column names whose values should be stored as "*****".
  *   Mirrors pgwen.input.data.maskFields config — masked values are never
@@ -99,7 +99,7 @@ export function bindRecordToScope(
     }
   }
 
-  // Set the reference framework implicit data record implicit values (always writeable)
+  // Set implicit data record implicit values (always writeable)
   scope.set('pgwen.data.record.index', String(recordIndex));
   scope.set('pgwen.data.record.number', String(recordIndex + 1));
 }

@@ -1,7 +1,7 @@
 /**
  * playwright/accessibility.ts — Accessibility snapshot DSL steps.
  *
- * Playwright-exclusive DSL (no WebDriver-style/the reference framework equivalent).
+ * Playwright-exclusive DSL (no WebDriver-style/equivalent).
  *
  * Registers these step patterns:
  *   I capture the accessibility snapshot

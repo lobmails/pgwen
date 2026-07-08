@@ -1,7 +1,7 @@
 /**
  * dsl/actions/DialogManager.ts — Per-page dialog queue for pgwen.
  *
- * the reference framework model: accept/dismiss steps come AFTER the trigger action, and the reference framework
+ * model: accept/dismiss steps come AFTER the trigger action, and 
  * waits for the dialog to appear.  The pre-registration pattern (registering
  * the handler BEFORE the trigger) is also supported for parity with projects that
  * follow that pattern.

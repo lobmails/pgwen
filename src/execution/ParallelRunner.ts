@@ -24,7 +24,7 @@ export interface ParallelRunOptions extends Omit<RunOptions, 'page'> {
    * stagger the starts so a server-side rate limit, login flow, or other
    * shared resource isn't slammed by a synchronised burst.
    *
-   * Maps directly to the reference framework's `pgwen.rampup.interval.seconds` setting; projects
+   * Maps directly to `pgwen.rampup.interval.seconds` setting; projects
    * configure via `pgwen.rampup.interval.seconds` in pgwen.conf.
    *
    * The ramp-up sleep is BETWEEN starts, not before the first one — so with

@@ -1,7 +1,7 @@
 /**
  * mobile/device.ts — Mobile emulation DSL steps.
  *
- * pgwen extends the reference framework's Chrome-only `pgwen.web.chrome.mobile.deviceName` to
+ * pgwen extends Chrome-only `pgwen.web.chrome.mobile.deviceName` to
  * all three Playwright engines via Playwright's built-in `devices` map.
  *
  * These steps configure emulation for the CURRENT page.  In practice the

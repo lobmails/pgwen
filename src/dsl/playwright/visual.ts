@@ -1,7 +1,7 @@
 /**
  * playwright/visual.ts — Visual diff DSL steps (screenshot comparison).
  *
- * Playwright-exclusive DSL (no WebDriver-style/the reference framework equivalent).
+ * Playwright-exclusive DSL (no WebDriver-style/equivalent).
  *
  * Registers these step patterns:
  *   I save the page snapshot as "<name>"

@@ -1,7 +1,7 @@
 /**
  * bindings/locators.ts — Element locator binding steps.
  *
- * Implements all the reference framework "can be located by" DSL patterns.
+ * Implements all "can be located by" DSL patterns.
  * Locators are stored in scope as lazy LocatorFn entries; the actual
  * Playwright locator is only created when the element is first used.
  *
@@ -19,7 +19,7 @@
  *   <element> can be located by <selector> "<expression>" near <otherElement>
  *   <element> can be located by <selector> "<expression>" near and within <n> pixel[s] of <otherElement>
  *
- * Multi-row table form (mirrors the reference framework-Web BindMultipleElementLocators):
+ * Multi-row table form (mirrors -Web BindMultipleElementLocators):
  *   <element> can be located by
  *     | <selectorType> | <expression> |
  *     | <selectorType> | <expression> |
@@ -172,7 +172,7 @@ export function registerLocatorBindings(registry: DslRegistry): void {
   );
 
   // ── Relative locators (spatial proximity) ────────────────────────────────
-  // the reference framework-Web: <element> can be located by <selector> "<expr>" above|below|near|to left of|to right of <otherElement>
+  // -Web: <element> can be located by <selector> "<expr>" above|below|near|to left of|to right of <otherElement>
   // Playwright doesn't have native relative locators; we filter by bounding-box position at resolution time.
 
   // <element> can be located by <selector> "<expression>" above <otherElement>
@@ -269,7 +269,7 @@ export function registerLocatorBindings(registry: DslRegistry): void {
   );
 
   // <element> can be located by <selector> "<expression>" near <otherElement>
-  // (defaults to within 50px — the reference framework's default proximity threshold)
+  // (defaults to within 50px — default proximity threshold)
   registry.register(
     new RegExp(`^(.+) can be located by (${SELECTOR_TYPES}) "(.+)" near (.+)$`, 'i'),
     async ([elementName, selectorType, expression, otherName], scope, page) => {
@@ -304,7 +304,7 @@ function buildLocatorFromFrame(frame: FrameLocatorLike, selectorType: string, ex
   return frame.locator(toPlaywrightSelector(selectorType, expression));
 }
 
-/** Convert the reference framework selector type + expression to a Playwright CSS/XPath selector string. */
+/** Convert selector type + expression to a Playwright CSS/XPath selector string. */
 function toPlaywrightSelector(selectorType: string, expression: string): string {
   const type = selectorType.trim().toLowerCase();
   switch (type) {

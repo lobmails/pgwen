@@ -186,8 +186,8 @@ export interface LocatorLike {
 // ─── Selector builder ─────────────────────────────────────────────────────────
 
 /**
- * Build a Playwright Locator from a the reference framework selector type + expression.
- * Selector types mirror the reference framework's web.locator values (case-insensitive).
+ * Build a Playwright Locator from a selector type + expression.
+ * Selector types mirror web.locator values (case-insensitive).
  */
 export function buildLocator(page: unknown, selectorType: string, expression: string): LocatorLike {
   const p = page as PageLike;
@@ -211,14 +211,14 @@ export function buildLocator(page: unknown, selectorType: string, expression: st
       // If expression already starts with "." treat as-is, otherwise prepend "."
       return p.locator(expression.startsWith('.') ? expression : `.${expression}`);
     case 'link text':
-      // the reference framework By.linkText restricts to <a> elements with exact visible text match
+      // By.linkText restricts to <a> elements with exact visible text match
       return p.locator(`a:text-is("${expression.replace(/"/g, '\\"')}")`);
     case 'partial link text':
-      // the reference framework By.partialLinkText restricts to <a> elements with substring text match
+      // By.partialLinkText restricts to <a> elements with substring text match
       return p.locator(`a:text("${expression.replace(/"/g, '\\"')}")`);
     case 'javascript':
     case 'js':
-      // the reference framework (WebDriver-style) used js: to run driver.executeScript() with jQuery.
+      // (WebDriver-style) used js: to run driver.executeScript() with jQuery.
       // Playwright has no js= engine — convert jQuery expressions to Playwright CSS.
       return p.locator(jqueryToPlaywright(expression));
     default:
@@ -273,7 +273,7 @@ async function applyImplicitBehaviors(loc: LocatorLike, scope: Scope): Promise<v
 // ─── jQuery → Playwright CSS conversion ──────────────────────────────────────
 
 /**
- * Convert a jQuery-style expression used with the reference framework's js: locator type into a
+ * Convert a jQuery-style expression used with js: locator type into a
  * Playwright-compatible CSS selector.
  *
  * Rules applied (in order):
@@ -300,7 +300,7 @@ export function jqueryToPlaywright(expression: string): string {
   // an A descendant, then find C inside it. Maps to CSS :has() reverse-lookup:
   //   B:has(A_inner_css) C_inner_css
   // Common in jQuery DOM walks: e.g. `$('span:contains("X")').closest('td').find('a')`.
-  // Two cases for outer-quote convention: single-outer (typical the reference framework pattern,
+  // Two cases for outer-quote convention: single-outer (typical pattern,
   // inner `"..."` attributes) and double-outer (inner `'...'`). Use explicit
   // non-quote char classes so the inner content can contain the OTHER quote
   // without bleeding into the `.closest()` segment.

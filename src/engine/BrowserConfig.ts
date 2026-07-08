@@ -4,12 +4,12 @@
  * Reads browser settings from the layered pgwen.conf / profile config and
  * provides a typed BrowserConfig object used by PlaywrightRunner and Repl.
  *
- * Supported pgwen.conf keys (the reference framework-faithful — same keys the reference framework projects use):
+ * Supported pgwen.conf keys (-faithful — same keys projects use):
  *   pgwen.target.browser           chromium | firefox | webkit            (default: chromium)
  *   pgwen.web.browser.headless     true | false                           (default: true)
  *   pgwen.web.browser.size         WxH, e.g. "1920x1080"                 (default: 1280x720)
  *   pgwen.web.capture.video        off | on | retain-on-failure           (default: off)
- *   pgwen.web.useragent            User-Agent string (the reference framework-compatible)    (default: undefined)
+ *   pgwen.web.useragent            User-Agent string (-compatible)    (default: undefined)
  *   pgwen.browser.slowMo           number (ms) — pgwen extension          (default: 0)
  *   pgwen.browser.trace            off | on | retain-on-failure — pgwen   (default: off)
  *   pgwen.browser.args             JSON array of extra browser args        (default: [])
@@ -25,7 +25,7 @@
  *                                 Playwright Browser Server pattern.
  *
  * WebDriver-style capabilities recognised inside pgwen.web.capabilities.* and
- * translated to Playwright equivalents (the reference framework projects already use these idioms):
+ * translated to Playwright equivalents (projects already use these idioms):
  *   pageLoadStrategy               eager | normal | none → goto waitUntil
  *   acceptInsecureCerts            true | false          → context ignoreHTTPSErrors
  *   locale                         e.g. "en-AU"          → context locale
@@ -78,7 +78,7 @@ export interface BrowserConfig {
    * Applied as Playwright's page default timeout after each page is created.
    * Reads pgwen.web.wait.seconds — the same key that pgwen.web.locator.wait.seconds
    * derives from in the client's HOCON config.
-   * Default: 30 (matches the reference framework and Playwright built-in defaults).
+   * Default: 30 (preserves and Playwright built-in defaults).
    */
   waitSeconds: number;
   /**
@@ -92,7 +92,7 @@ export interface BrowserConfig {
   remoteUrl?: string;
   /**
    * Extra capabilities forwarded from pgwen.web.capabilities.* config keys.
-   * the reference framework projects set these for WebDriver-style grid — pgwen reads the recognised keys
+   * projects set these for WebDriver-style grid — pgwen reads the recognised keys
    * (browserName → type override, screenResolution → viewport) and passes
    * the rest through as-is for grid-specific use.
    */
@@ -100,7 +100,7 @@ export interface BrowserConfig {
   /**
    * Default page-load wait strategy applied to navigation steps (goto/reload/
    * goBack/goForward). Sourced from the WebDriver-style-standard capability
-   * `pgwen.web.capabilities.pageLoadStrategy` — the reference framework projects already use this
+   * `pgwen.web.capabilities.pageLoadStrategy` — projects already use this
    * idiom. Undefined leaves Playwright's built-in default ('load') in place.
    */
   pageLoadStrategy?: PageLoadStrategy;
@@ -159,9 +159,9 @@ export function resolveBrowserConfig(
   const capBrowserName = capabilities['browserName'] ? parseType(mapCapBrowserName(capabilities['browserName'])) : undefined;
   const type = capBrowserName ?? parseType(raw('pgwen.target.browser')) ?? DEFAULT_BROWSER_CONFIG.type;
 
-  // pgwen.web.browser.headless — matches the reference framework config key
+  // pgwen.web.browser.headless — preserves config key
   const headless = parseBool(raw('pgwen.web.browser.headless')) ?? DEFAULT_BROWSER_CONFIG.headless;
-  // pgwen.web.throttle.msecs mirrors the reference framework's pgwen.web.throttle.msecs (per-action delay);
+  // pgwen.web.throttle.msecs Preserves pgwen.web.throttle.msecs (per-action delay);
   // pgwen.browser.slowMo is the Playwright-native override — either key works
   const slowMo = parseNum(raw('pgwen.browser.slowMo'))
     ?? parseNum(raw('pgwen.web.throttle.msecs'))
@@ -169,12 +169,12 @@ export function resolveBrowserConfig(
 
   // pgwen.web.capabilities.screenResolution overrides pgwen.web.browser.size
   const capResolution = capabilities['screenResolution'] ? parseViewportSize(capabilities['screenResolution'].replace('x', 'x')) : undefined;
-  // pgwen.web.browser.size — "WxH" format, e.g. "1920x1080" — matches the reference framework config key
+  // pgwen.web.browser.size — "WxH" format, e.g. "1920x1080" — preserves config key
   const sizeViewport = capResolution ?? parseViewportSize(raw('pgwen.web.browser.size'));
   const viewportWidth = sizeViewport?.width ?? DEFAULT_BROWSER_CONFIG.viewport.width;
   const viewportHeight = sizeViewport?.height ?? DEFAULT_BROWSER_CONFIG.viewport.height;
 
-  // pgwen.web.capture.video — matches the reference framework config key
+  // pgwen.web.capture.video — preserves config key
   const video = parseVideoMode(raw('pgwen.web.capture.video')) ?? DEFAULT_BROWSER_CONFIG.video;
   const trace = parseTraceMode(raw('pgwen.browser.trace')) ?? DEFAULT_BROWSER_CONFIG.trace;
   const args = parseArgs(raw('pgwen.browser.args')) ?? DEFAULT_BROWSER_CONFIG.args;
@@ -183,7 +183,7 @@ export function resolveBrowserConfig(
   const maximize = parseBool(raw('pgwen.web.maximize')) ?? DEFAULT_BROWSER_CONFIG.maximize;
 
   // Translate W3C/WebDriver-style capabilities → Playwright equivalents.
-  // the reference framework projects already set these via pgwen.web.capabilities.* — honour them
+  // projects already set these via pgwen.web.capabilities.* — honour them
   // so existing configs work in pgwen with no rewrite.
   const pageLoadStrategy = parsePageLoadStrategy(capabilities['pageLoadStrategy']);
   const ignoreHTTPSErrors = parseBool(capabilities['acceptInsecureCerts']);

@@ -60,7 +60,7 @@ const ANSI = {
   yellow: '\x1b[33m',
   cyan:   '\x1b[36m',
   gray:   '\x1b[90m',
-  pink:   '\x1b[95m',   // bright magenta — matches the reference framework's Feature/Scenario/Background colour
+  pink:   '\x1b[95m',   // bright magenta — preserves Feature/Scenario/Background colour
 };
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export interface ConsoleReporterOptions {
   /**
    * Depth of StepDef expansion to show.
    * 0 = top-level steps only.
-   * 1 = expand one level (the reference framework default).
+   * 1 = expand one level (default).
    * -1 or Infinity = expand all levels.
    */
   depth?: number;
@@ -191,23 +191,30 @@ interface StepCounts {
   passed: number;
   failed: number;
   skipped: number;
+  sustained: number;
 }
 
-/** Count leaf steps (steps with no children) recursively. StepDef calls are not counted. */
+/** Count leaf steps (steps with no children) recursively. StepDef calls are not counted.
+ *  Sustained steps are counted as `passed` for the pass tally AND separately as
+ *  `sustained` so the totals table can render both figures — matches where
+ *  a sustained step contributes to Passed but also flags the Sustained column.
+ */
 function countLeafSteps(steps: StepResult[]): StepCounts {
-  let total = 0, passed = 0, failed = 0, skipped = 0;
+  let total = 0, passed = 0, failed = 0, skipped = 0, sustained = 0;
   for (const step of steps) {
     if (!step.children || step.children.length === 0) {
       total++;
-      if (step.status === 'passed') passed++;
-      else if (step.status === 'failed') failed++;
+      if (step.status === 'passed') {
+        passed++;
+        if (step.sustained) sustained++;
+      } else if (step.status === 'failed') failed++;
       else skipped++;
     } else {
       const c = countLeafSteps(step.children);
-      total += c.total; passed += c.passed; failed += c.failed; skipped += c.skipped;
+      total += c.total; passed += c.passed; failed += c.failed; skipped += c.skipped; sustained += c.sustained;
     }
   }
-  return { total, passed, failed, skipped };
+  return { total, passed, failed, skipped, sustained };
 }
 
 interface ErrorEntry {
@@ -216,10 +223,14 @@ interface ErrorEntry {
   location?: string;
 }
 
-/** Collect unique error entries (message + location) from a step tree. */
+/** Collect unique error entries (message + location) from a step tree.
+ *  Sustained steps carry an error but the feature/summary is still `passed`,
+ *  so their errors are printed inline (with the step) rather than in the
+ *  trailing "- <error>" list. Skip them here to avoid double-reporting.
+ */
 function collectErrorEntries(steps: StepResult[], seen: Map<string, ErrorEntry>): void {
   for (const step of steps) {
-    if (step.error) {
+    if (step.error && !step.sustained) {
       const key = step.error.message;
       if (!seen.has(key)) {
         const entry: ErrorEntry = { message: key };
@@ -257,16 +268,17 @@ export class ConsoleReporter {
     return `${code}${text}${ANSI.reset}`;
   }
 
-  private bold(text: string): string  { return this.c(ANSI.bold, text);   }
-  private green(text: string): string { return this.c(ANSI.green, text);  }
-  private red(text: string): string   { return this.c(ANSI.red, text);    }
-  private gray(text: string): string  { return this.c(ANSI.gray, text);   }
-  private cyan(text: string): string  { return this.c(ANSI.cyan, text);   }
-  private pink(text: string): string  { return this.c(ANSI.pink, text);   }
+  private bold(text: string): string   { return this.c(ANSI.bold, text);   }
+  private green(text: string): string  { return this.c(ANSI.green, text);  }
+  private red(text: string): string    { return this.c(ANSI.red, text);    }
+  private yellow(text: string): string { return this.c(ANSI.yellow, text); }
+  private gray(text: string): string   { return this.c(ANSI.gray, text);   }
+  private cyan(text: string): string   { return this.c(ANSI.cyan, text);   }
+  private pink(text: string): string   { return this.c(ANSI.pink, text);   }
 
   /**
    * Build the stats table header with "Passed" rendered in green and the
-   * rest in gray — matches the reference framework console output.
+   * rest in gray — preserves console output.
    */
   private coloredHeader(): string {
     if (!this.colors) return this.gray(TABLE_HEADER);
@@ -301,12 +313,12 @@ export class ConsoleReporter {
   }
 
   /**
-   * Colorize a `buildValuesRow()` result: passed → green, failed/sustained → red.
+   * Colorize a `buildValuesRow()` result: passed → green, failed → red, sustained → yellow.
    * Processes columns right-to-left so ANSI insertions don't shift earlier positions.
    */
   private colorizeValuesRow(row: string, cols: TableCols): string {
     let r = row;
-    if (cols.sustained > 0) r = this.colorizeAtLabel(r, 'Sustained', cols.sustained, this.red.bind(this));
+    if (cols.sustained > 0) r = this.colorizeAtLabel(r, 'Sustained', cols.sustained, this.yellow.bind(this));
     if (cols.failed > 0)    r = this.colorizeAtLabel(r, 'Failed',    cols.failed,    this.red.bind(this));
     if (cols.passed > 0)    r = this.colorizeAtLabel(r, 'Passed',    cols.passed,    this.green.bind(this));
     return r;
@@ -314,12 +326,15 @@ export class ConsoleReporter {
 
   /**
    * Colorize a sub-row: passed counts → green under 'Passed' column,
-   * failed counts → red under 'Failed' column. Processes right-to-left.
+   * failed counts → red under 'Failed' column, sustained counts → yellow under
+   * 'Sustained' column. Processes right-to-left so ANSI insertions don't shift
+   * earlier column positions.
    */
-  private colorizeSubRow(row: string, passedVal: number, failedVal: number): string {
+  private colorizeSubRow(row: string, passedVal: number, failedVal: number, sustainedVal = 0): string {
     let r = row;
-    if (failedVal > 0)  r = this.colorizeAtLabel(r, 'Failed', failedVal, this.red.bind(this));
-    if (passedVal > 0)  r = this.colorizeAtLabel(r, 'Passed', passedVal, this.green.bind(this));
+    if (sustainedVal > 0) r = this.colorizeAtLabel(r, 'Sustained', sustainedVal, this.yellow.bind(this));
+    if (failedVal > 0)    r = this.colorizeAtLabel(r, 'Failed',    failedVal,    this.red.bind(this));
+    if (passedVal > 0)    r = this.colorizeAtLabel(r, 'Passed',    passedVal,    this.green.bind(this));
     return r;
   }
 
@@ -331,7 +346,7 @@ export class ConsoleReporter {
 
   /**
    * Print the pgwen banner. Call once before execution starts.
-   * Matches the reference framework's banner format: large ASCII art logo, welcome line, target info.
+   * Matches banner format: large ASCII art logo, welcome line, target info.
    */
   printBanner(): void {
     this.write('');
@@ -349,8 +364,34 @@ export class ConsoleReporter {
   }
 
   /**
+   * Print a cross-profile summary at the end of a multi-profile run.
+   * Mirrors 's "results of all profiles at end" block — one line
+   * per profile, right-aligned status colour-coded like the feature footer.
+   * Called only when the CLI receives `-p A,B,C…` with more than one profile.
+   */
+  printProfileResults(outcomes: Array<{ name: string; status: 'passed' | 'failed' | 'skipped'; durationMs: number }>): void {
+    if (outcomes.length === 0) return;
+    const maxNameLen = Math.max(...outcomes.map((o) => o.name.length));
+    this.write('');
+    this.write(this.bold('Profile results:'));
+    this.write('');
+    for (const o of outcomes) {
+      const namePad = o.name.padEnd(maxNameLen);
+      const dur = `[${formatElapsed(o.durationMs)}]`;
+      if (o.status === 'passed') {
+        this.write(`  ${namePad}  ${this.green(dur)} ${this.green('Passed ✓')}`);
+      } else if (o.status === 'failed') {
+        this.write(`  ${namePad}  ${this.red(dur)} ${this.red('Failed x')}`);
+      } else {
+        this.write(`  ${namePad}  ${this.gray(dur)} ${this.gray('Skipped')}`);
+      }
+    }
+    this.write('');
+  }
+
+  /**
    * Print report paths after all reports are generated.
-   * Matches the reference framework format: "Reports:" header, right-aligned labels, relative paths.
+   * Matches format: "Reports:" header, right-aligned labels, relative paths.
    * @param entries  Array of {label, path} pairs, e.g. {label: 'HTML', path: '...'}
    */
   printReports(entries: ReportEntry[]): void {
@@ -393,7 +434,7 @@ export class ConsoleReporter {
     // Aggregate stats for this feature
     let passedScenarios = 0, failedScenarios = 0, skippedScenarios = 0;
     const errorEntries = new Map<string, ErrorEntry>();
-    let totalSteps = 0, passedSteps = 0, failedSteps = 0, skippedSteps = 0;
+    let totalSteps = 0, passedSteps = 0, failedSteps = 0, skippedSteps = 0, sustainedSteps = 0;
 
     for (const s of result.scenarios) {
       if (s.status === 'passed')       passedScenarios++;
@@ -406,15 +447,16 @@ export class ConsoleReporter {
       collectErrorEntries(s.steps, errorEntries);
 
       const sc = countLeafSteps(s.steps);
-      totalSteps   += sc.total;
-      passedSteps  += sc.passed;
-      failedSteps  += sc.failed;
-      skippedSteps += sc.skipped;
+      totalSteps     += sc.total;
+      passedSteps    += sc.passed;
+      failedSteps    += sc.failed;
+      skippedSteps   += sc.skipped;
+      sustainedSteps += sc.sustained;
     }
 
     const totalScenarios = result.scenarios.length;
 
-    // Stats table — header + sub-rows only (no separate values row, matches the reference framework)
+    // Stats table — header + sub-rows only (no separate values row, matches )
     this.write(this.coloredHeader());
 
     const scenarioWord = totalScenarios === 1 ? 'Scenario' : 'Scenarios';
@@ -435,10 +477,10 @@ export class ConsoleReporter {
       let stepRow = stepPrefix;
       stepRow = placeUnderCol(stepRow, 'Passed',    passedSteps,  subRowMinStart);
       stepRow = placeUnderCol(stepRow, 'Failed',    failedSteps);
-      stepRow = placeUnderCol(stepRow, 'Sustained', 0);
+      stepRow = placeUnderCol(stepRow, 'Sustained', sustainedSteps);
       stepRow = placeUnderCol(stepRow, 'Skipped',   skippedSteps);
       stepRow = placeUnderCol(stepRow, 'Pending',   0);
-      this.write(this.colorizeSubRow(stepRow, passedSteps, failedSteps));
+      this.write(this.colorizeSubRow(stepRow, passedSteps, failedSteps, sustainedSteps));
     }
 
     // Timing
@@ -448,14 +490,14 @@ export class ConsoleReporter {
     this.write(`  Elapsed   ${formatElapsed(result.endTime.getTime() - result.startTime.getTime())}`);
     this.write('');
 
-    // Status line — matches the reference framework: "[duration] Passed ✓" or "[duration] Failed x" at column 0
+    // Status line — matches : "[duration] Passed ✓" or "[duration] Failed x" at column 0
     if (result.status === 'passed') {
       this.write(`[${formatMs(result.durationMs)}] ${this.green('Passed ✓')}`);
     } else {
       this.write(`[${formatMs(result.durationMs)}] ${this.red('Failed x')}`);
     }
 
-    // Error list — matches the reference framework format: "- message" then indented "[at location]"
+    // Error list — preserves format: "- message" then indented "[at location]"
     if (errorEntries.size > 0) {
       this.write('');
       for (const entry of errorEntries.values()) {
@@ -477,7 +519,7 @@ export class ConsoleReporter {
 
     let passedFeatures = 0, failedFeatures = 0;
     let totalScenarios = 0, passedScenarios = 0, failedScenarios = 0, skippedScenarios = 0;
-    let totalSteps = 0, passedSteps = 0, failedSteps = 0, skippedSteps = 0;
+    let totalSteps = 0, passedSteps = 0, failedSteps = 0, skippedSteps = 0, sustainedSteps = 0;
     const errorEntries = new Map<string, ErrorEntry>();
 
     for (const r of results) {
@@ -495,10 +537,11 @@ export class ConsoleReporter {
         collectErrorEntries(s.steps, errorEntries);
 
         const sc = countLeafSteps(s.steps);
-        totalSteps   += sc.total;
-        passedSteps  += sc.passed;
-        failedSteps  += sc.failed;
-        skippedSteps += sc.skipped;
+        totalSteps     += sc.total;
+        passedSteps    += sc.passed;
+        failedSteps    += sc.failed;
+        skippedSteps   += sc.skipped;
+        sustainedSteps += sc.sustained;
       }
     }
 
@@ -508,7 +551,7 @@ export class ConsoleReporter {
     this.write(this.bold('Summary:'));
     this.write('');
 
-    // Per-feature result list FIRST — mirrors the reference framework's summary format:
+    // Per-feature result list FIRST — Preserves summary format:
     //   [duration] Passed ✓  Feature name [X of N]  path/to/feature
     //   [duration] Failed x  Feature name [X of N]  path/to/feature
     for (const r of results) {
@@ -529,7 +572,7 @@ export class ConsoleReporter {
 
     this.write('');
 
-    // Stats table — header + sub-rows only (no separate values row, matches the reference framework)
+    // Stats table — header + sub-rows only (no separate values row, matches )
     // All sub-rows (Features, Scenarios, Steps) share the same value column start
     // so their passed/failed counts align vertically regardless of label width.
     this.write(this.coloredHeader());
@@ -562,10 +605,10 @@ export class ConsoleReporter {
       let stepRow = stepPrefix;
       stepRow = placeUnderCol(stepRow, 'Passed',    passedSteps,  subRowMinStart);
       stepRow = placeUnderCol(stepRow, 'Failed',    failedSteps);
-      stepRow = placeUnderCol(stepRow, 'Sustained', 0);
+      stepRow = placeUnderCol(stepRow, 'Sustained', sustainedSteps);
       stepRow = placeUnderCol(stepRow, 'Skipped',   skippedSteps);
       stepRow = placeUnderCol(stepRow, 'Pending',   0);
-      this.write(this.colorizeSubRow(stepRow, passedSteps, failedSteps));
+      this.write(this.colorizeSubRow(stepRow, passedSteps, failedSteps, sustainedSteps));
     }
 
     // Timing
@@ -587,7 +630,7 @@ export class ConsoleReporter {
       this.write(`[${formatElapsed(totalDurationMs)}] ${this.green('Passed ✓')}`);
     }
 
-    // Error list — matches the reference framework format: "- message" then indented "[at location]"
+    // Error list — preserves format: "- message" then indented "[at location]"
     if (anyFailed && errorEntries.size > 0) {
       this.write('');
       for (const entry of errorEntries.values()) {
@@ -602,7 +645,7 @@ export class ConsoleReporter {
   // ─── Internal rendering ────────────────────────────────────────────────────
 
   private printScenario(scenario: ScenarioRunResult, indent: string): void {
-    // Background section: shown when driven by a data feed (matches the reference framework output).
+    // Background section: shown when driven by a data feed (preserves output).
     if (scenario.dataFeedFile !== undefined && scenario.recordNumber !== undefined) {
       const recordLabel = scenario.recordTotal != null
         ? `Input data record [${scenario.recordNumber} of ${scenario.recordTotal}]`
@@ -653,13 +696,31 @@ export class ConsoleReporter {
       if (isStepDef) {
         // StepDef invocation: show keyword + text, no timing/icon
         this.write(`${indent}${kwPad}${keyword} ${displayText}`);
-        // Each StepDef level adds 6 spaces (matches the reference framework hierarchy depth)
+        // Each StepDef level adds 6 spaces (preserves hierarchy depth)
         this.printSteps(step.children!, indent + '      ', currentDepth + 1);
       } else {
         // Leaf step: show keyword + text + [timing] + icon/Failed
-        // Always show [Xms] even when duration is 0 (matches the reference framework).
+        // Always show [Xms] even when duration is 0 (matches ).
         const timing = step.durationMs != null ? ` ${this.green('[' + formatMs(step.durationMs) + ']')} ` : ' ';
-        if (step.status === 'passed') {
+        // Sustained: rendered like passed, but the ✓ is replaced by a yellow
+        // "Sustained" label and the accumulated assertion error is printed on
+        // the following line in red (matches console output).
+        if (step.sustained) {
+          const marker = this.bold(this.yellow('Sustained'));
+          if (step.docString !== undefined) {
+            this.write(`${indent}${kwPad}${keyword} ${displayText}`);
+            this.write(`${docIndent}""""`);
+            for (const line of step.docString.split('\n')) {
+              this.write(`${docIndent}${line}`);
+            }
+            this.write(`${docIndent}""""${timing}${marker}`);
+          } else {
+            this.write(`${indent}${kwPad}${keyword} ${displayText}${timing}${marker}`);
+          }
+          if (step.error) {
+            this.write(this.red(step.error.message));
+          }
+        } else if (step.status === 'passed') {
           if (step.docString !== undefined) {
             // Render step text, then """" block, then closing """" + timing + icon
             this.write(`${indent}${kwPad}${keyword} ${displayText}`);
@@ -682,7 +743,7 @@ export class ConsoleReporter {
           } else {
             this.write(`${indent}${kwPad}${keyword} ${displayText}${timing}${this.red('Failed x')}`);
           }
-          // Error message at column 0 (the reference framework behaviour)
+          // Error message at column 0 (behaviour)
           if (step.error) {
             this.write(this.red(step.error.message));
           }

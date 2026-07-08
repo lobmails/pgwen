@@ -1,7 +1,7 @@
 /**
  * MetaEngine.ts — Load .meta files and build the StepDef registry.
  *
- * Implements all three the reference framework meta load strategies:
+ * Implements all three meta load strategies:
  *
  *   1. Associative  — auto-loads <name>.meta alongside <name>.feature
  *   2. Common       — loads named meta files / directories for all features
@@ -179,7 +179,7 @@ export class MetaEngine {
       // ones. If the author wrote `@StepDefs` (typo), the scenario won't
       // parse as a StepDef and the old code's `continue` below would
       // silently skip it. Validating up-front catches the typo at load
-      // time — matches the reference framework's IllegalStepAnnotationException behaviour.
+      // time — preserves IllegalStepAnnotationException behaviour.
       validateAnnotationNamesAtLocation(scenario.tags, sourceFile, scenario.line);
 
       const annotations = parseAnnotations(scenario.tags);
@@ -193,14 +193,14 @@ export class MetaEngine {
       }
 
       // Validate @Finally position: it must only appear on the last step.
-      // The reference framework throws IllegalStepAnnotationException immediately on this.
+      // This case is flagged immediately.
       validateFinallyPosition(scenario, sourceFile);
 
       // Validate @Eager usage: only permitted on '<x> defined by <y>' binding steps.
       validateEagerAnnotation(scenario, sourceFile);
 
       // Detect duplicate StepDef names — same file first, then cross-file.
-      // The reference framework throws in both cases:
+      // Both cases raise:
       //   "Ambiguous condition in file X: StepDef 'Y' defined 2 times"
       const existingInFile = seenInFile.get(scenario.name) ?? 0;
       seenInFile.set(scenario.name, existingInFile + 1);
@@ -213,7 +213,7 @@ export class MetaEngine {
       const priorFile = this.globalStepNames.get(scenario.name);
       if (priorFile !== undefined && priorFile !== sourceFile) {
         // Second definition comes from a different file — throw citing the current file
-        // (matches the reference framework's error format which names the file where the duplicate was found)
+        // (preserves error format which names the file where the duplicate was found)
         throw new AmbiguousCaseException(
           `Ambiguous condition in file ${sourceFile}: StepDef '${scenario.name}' defined 2 times`
         );
@@ -370,7 +370,7 @@ function levenshtein(a: string, b: string): number {
 
 /**
  * Validate that @Finally (inline annotation) appears only on the LAST step of
- * a StepDef body. The reference framework throws IllegalStepAnnotationException immediately
+ * a StepDef body. pgwen flags this immediately
  * when it encounters @Finally on any non-last step during meta loading.
  */
 function validateFinallyPosition(scenario: ParsedScenario, sourceFile: string): void {
@@ -389,7 +389,7 @@ function validateFinallyPosition(scenario: ParsedScenario, sourceFile: string): 
 
 /**
  * Validate that @Eager only appears on '<x> defined by <y>' binding steps.
- * The reference framework error: "Invalid or illegal step annotation [at file:line]:
+ * pgwen error: "Invalid or illegal step annotation [at file:line]:
  *   @Eager annotation permitted only for '<x> defined by <y>' DSL steps"
  */
 function validateEagerAnnotation(scenario: ParsedScenario, sourceFile: string): void {

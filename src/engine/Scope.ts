@@ -52,7 +52,7 @@ export class Scope {
    * Nested write-capture buffers.
    * Each call to startCapture() pushes a new buffer. Every scope write (set,
    * setTransparent, etc.) appends to ALL active buffers so that each capture
-   * level sees the full set of writes in its subtree — matching the reference framework's
+   * level sees the full set of writes in its subtree — matching 's
    * per-step "Attachments" dropdown which shows all bindings created recursively
    * through a step's StepDef body.
    */
@@ -200,7 +200,7 @@ export class Scope {
    * Set a literal binding in the nearest non-stepdef frame (transparent write).
    * Silently skips if the key was declared read-only via setReadonlyTransparent().
    *
-   * the reference framework WebDriver-style parity: bindings written by `<name> is "<value>"` inside a
+   * WebDriver-style parity: bindings written by `<name> is "<value>"` inside a
    * StepDef body must survive scope.pop() and be visible to subsequent steps in
    * the same scenario. This method writes past any active stepdef frames so the
    * binding lands in the enclosing scenario (or feature/global) scope.
@@ -424,7 +424,7 @@ export class Scope {
 
   /**
    * Dump scope bindings grouped by layer — used by the REPL `env` command to
-   * produce the reference framework-format output:
+   * produce -format output:
    *   env {
    *     scope : "feature" {
    *       x : "value"

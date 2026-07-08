@@ -1,7 +1,7 @@
 /**
  * playwright/har.ts — HAR (HTTP Archive) record and replay DSL steps.
  *
- * Playwright-exclusive DSL (no WebDriver-style/the reference framework equivalent).
+ * Playwright-exclusive DSL (no WebDriver-style/equivalent).
  *
  * Registers these step patterns:
  *   I replay requests from HAR file "<path>"

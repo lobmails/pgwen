@@ -1,5 +1,5 @@
 /**
- * Annotations.ts — Parse all 27 the reference framework annotations from Gherkin tag strings.
+ * Annotations.ts — Parse all 27 annotations from Gherkin tag strings.
  *
  * Gherkin tags arrive as strings like "@StepDef", "@Timeout('10s')", "@Import('path/to/file.meta')".
  * This module converts an array of such tag strings into a strongly-typed ParsedAnnotations object.
@@ -67,7 +67,7 @@ export interface ParsedAnnotations {
   // Dry run value override — legacy positional form @DryRun('value')
   dryRunValue?: string;
   /**
-   * Named dry-run bindings — the reference framework form @DryRun(name='var',value='val').
+   * Named dry-run bindings — form @DryRun(name='var',value='val').
    * Each entry names a scope variable and the value(s) to inject during dry runs.
    * Multiple values cause the step to be exercised once per value.
    * Populated by: @DryRun(name='x',value='v') or @DryRun(name='x',value=['v1','v2'])

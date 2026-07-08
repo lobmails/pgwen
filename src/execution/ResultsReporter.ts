@@ -1,7 +1,7 @@
 /**
  * ResultsReporter.ts — Config-driven results CSV output.
  *
- * the reference framework writes results to CSV files according to pgwen.conf settings:
+ * writes results to CSV files according to pgwen.conf settings:
  *
  *   pgwen.report.results {
  *     fields {
@@ -53,10 +53,10 @@ export interface ResultsField {
   /**
    * When set, rows in the output file are sorted by THIS field at end-of-run.
    * Only ONE field per file may carry a `sort` directive — multiple sort
-   * fields throw at parse time (matches the reference framework `multipleSortFieldsError`).
+   * fields throw at parse time (preserves `multipleSortFieldsError`).
    *
    * Numeric values sort numerically when ALL rows parse as Number; otherwise
-   * sort is lexicographic (the reference framework ResultFile.scala:70 behaviour).
+   * sort is lexicographic (ResultFile.scala:70 behaviour).
    */
   sort?: 'ascending' | 'descending';
 }
@@ -79,7 +79,7 @@ export class ResultsReporter {
 
   constructor(files: FileSpec[]) {
     // Standard behaviour: each output file may carry AT MOST ONE sort field.
-    // Multiple sort fields throw at construction time (the reference framework
+    // Multiple sort fields throw at construction time (
     // `multipleSortFieldsError`) — operators get the misconfiguration
     // surfaced before the run, not after.
     for (const spec of files) {
@@ -133,10 +133,10 @@ export class ResultsReporter {
    *   - Lexicographic comparison by default.
    *   - When EVERY data-row's value in the sort column parses as a
    *     finite Number, the comparison becomes numeric (so "10" sorts
-   *     after "9", not before). This mirrors the reference framework ResultFile.scala:70.
+   *     after "9", not before). This Preserves ResultFile.scala:70.
    *   - Direction follows the field's `sort = 'ascending' | 'descending'`.
    *
-   * Multiple sort fields in the same file throws at parse time (the reference framework
+   * Multiple sort fields in the same file throws at parse time (
    * `multipleSortFieldsError`) — caught in the constructor before any
    * row is written.
    */

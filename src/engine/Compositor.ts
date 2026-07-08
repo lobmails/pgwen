@@ -107,19 +107,19 @@ export interface StepResult {
   bindings?: BindingAttachment[];
   /**
    * True when the step was abstained (if-guard condition was false and the step
-   * was skipped). Matches the reference framework's Passed(abstained=true) concept.
+   * was skipped). Matches Passed(abstained=true) concept.
    */
   abstained?: boolean;
   /**
    * Docstring content attached to this step (e.g. JS function body for
    * "is defined by js" docstring form). Used by ConsoleReporter to render
-   * the """" ... """" block below the step line, matching the reference framework output.
+   * the """" ... """" block below the step line, matching output.
    */
   docString?: string;
   /**
    * Inline step annotations that were active on this step (e.g. ['@Eager'], ['@Try']).
    * Stripped from displayText before execution; preserved here so HTML/console reporters
-   * can render them as gray labels before the step text — matches the reference framework report style.
+   * can render them as gray labels before the step text — preserves report style.
    */
   stepAnnotations?: string[];
   /**
@@ -157,6 +157,15 @@ export interface StepResult {
    * Strictly additive — never affects pass/fail outcome or behaviour.
    */
   failureClass?: FailureClassification;
+  /**
+   * True when this step was demoted from failed→passed by @Sustained (or by
+   * pgwen.assertion.mode=sustained). Reporters use this to render the step
+   * in a passed context but show the accumulated assertion error inline
+   * (yellow "Sustained" label + red error message in console; yellow badge
+   * + red panel-danger block inside the green step in HTML).
+   * When true, `error` is preserved so reporters can display the message.
+   */
+  sustained?: boolean;
 }
 
 /**
@@ -190,7 +199,7 @@ export interface CompositorOptions {
    * is bound to scope using the interpolated step text as the key and the step
    * returns passed without invoking the DSL handler or StepDef.
    * Steps without a @DryRun annotation execute normally.
-   * Mirrors the reference framework's dry-run substitution behaviour.
+   * Preserves dry-run substitution behaviour.
    */
   dryRun?: boolean;
   /**
@@ -376,7 +385,7 @@ export class Compositor {
     const ifGuard = parseIfGuard(annotations.cleanText);
     let cleanText = ifGuard ? ifGuard.step : annotations.cleanText;
 
-    // "I assert that <step>" prefix — the reference framework soft-assert wrapper. Strips the
+    // "I assert that <step>" prefix — soft-assert wrapper. Strips the
     // prefix and forces @Soft semantics so the inner step's failure is
     // accumulated (visible at the end via `there should be no accumulated
     // errors`) instead of halting the scenario. The inner step is then
@@ -465,7 +474,7 @@ export class Compositor {
     }
 
     // @DryRun named form — inject name=value into scope BEFORE interpolation so
-    // ${name} resolves correctly in the step text.  This matches the reference framework behaviour:
+    // ${name} resolves correctly in the step text.  This preserves behaviour:
     // the step still executes; DryRun only seeds the scope variable.
     // Multi-value: each call cycles to the next value using a per-name counter in scope.
     if (annotations.dryRunName !== undefined && annotations.dryRunValues && annotations.dryRunValues.length > 0) {
@@ -511,7 +520,7 @@ export class Compositor {
     }
 
     // Dryrun condition validation: check that all if-guard condition bindings exist.
-    // the reference framework surfaces "Unbound reference" errors for if-guard conditions during dryrun
+    // surfaces "Unbound reference" errors for if-guard conditions during dryrun
     // even though the conditions aren't used for control flow — mirrors that behaviour.
     if (ifGuard && this.options.dryRun) {
       for (const rawCond of ifGuard.conditions) {
@@ -570,7 +579,7 @@ export class Compositor {
     // The binding key is the ATTRIBUTE portion of the step text (everything before the
     // first DSL keyword like "should", "is", "can", "will", etc.) rather than the full
     // step text, so the Attachments dropdown shows a meaningful variable name.
-    // Kept for backward compat. In the reference framework the named form is always preferred.
+    // Kept for backward compat. the named form is always preferred.
     if (this.options.dryRun && annotations.dryRunValue !== undefined && annotations.dryRunName === undefined) {
       const bindingKey = extractAttributeFromStep(interpolated);
       this.scope.set(bindingKey, annotations.dryRunValue);
@@ -681,9 +690,12 @@ export class Compositor {
         }
         // @Sustained: accumulate silently; step appears as passed.
         // Apply @Message override so the accumulated error carries the custom text.
+        // The step keeps its error and is marked `sustained: true` so reporters
+        // can render it in a passed context with the assertion message inline.
         if (annotations.isSustained) {
-          if (result.error) this.sustainedErrors.push(withMessage(result).error ?? result.error);
-          return withTiming({ ...result, status: 'passed' });
+          const sustainedErr = result.error ? (withMessage(result).error ?? result.error) : undefined;
+          if (sustainedErr) this.sustainedErrors.push(sustainedErr);
+          return withTiming({ ...result, status: 'passed', sustained: true, ...(sustainedErr ? { error: sustainedErr } : {}) });
         }
         // @Soft: accumulate and report passed.
         // Apply @Message override so the accumulated error carries the custom text.
@@ -693,8 +705,9 @@ export class Compositor {
         }
         // Global assertion mode (pgwen.assertion.mode) — applies when no per-step override set
         if (this.options.assertionMode === 'sustained') {
-          if (result.error) this.sustainedErrors.push(withMessage(result).error ?? result.error);
-          return withTiming({ ...result, status: 'passed' });
+          const sustainedErr = result.error ? (withMessage(result).error ?? result.error) : undefined;
+          if (sustainedErr) this.sustainedErrors.push(sustainedErr);
+          return withTiming({ ...result, status: 'passed', sustained: true, ...(sustainedErr ? { error: sustainedErr } : {}) });
         }
         if (this.options.assertionMode === 'soft') {
           if (result.error) this.softErrors.push(withMessage(result).error ?? result.error);
@@ -719,7 +732,7 @@ export class Compositor {
     }
 
     // 1b. Special: "I log record to <id> file" — trigger named results reporter inline.
-    //     This is a the reference framework engine-level step (not a DSL step) that calls the named
+    //     This is a engine-level step (not a DSL step) that calls the named
     //     results reporter for the given file ID, writing current scope to the CSV.
     {
       const logMatch = /^I log record to (.+?) file$/i.exec(interpolated);
@@ -768,12 +781,12 @@ export class Compositor {
       // @Lazy — snapshot lazy resolver refs before execution.
       // After the handler, any newly-created lazy resolver is wrapped with a
       // cache-on-first-call layer so the value is computed once at the first
-      // reference and then frozen as a literal — matching the reference framework's @Lazy semantics.
+      // reference and then frozen as a literal — matching @Lazy semantics.
       const lazyResolveBefore = annotations.isLazy
         ? this.scope.lazyResolversInNonStepdefFrame()
         : undefined;
 
-      // Inline @Trim / @IgnoreCase — the reference framework step-level annotations. Apply by
+      // Inline @Trim / @IgnoreCase — step-level annotations. Apply by
       // temporarily turning the scope flags on for the duration of this step
       // so assertion helpers (text / url / dropdown / file etc.) pick them
       // up via the same `pgwen._trim` / `pgwen._ignoreCase` read they use
@@ -836,7 +849,7 @@ export class Compositor {
         // @Lazy — wrap newly-created lazy resolvers with cache-on-first-call.
         // First reference resolves the value and replaces the resolver with a
         // literal so subsequent references return the frozen first-resolved value.
-        // Matches the reference framework's @Lazy semantics ("retain the first-evaluated value").
+        // Matches @Lazy semantics ("retain the first-evaluated value").
         if (lazyResolveBefore) {
           const scope = this.scope;
           for (const [key, resolver] of scope.lazyResolversInNonStepdefFrame()) {
@@ -869,10 +882,13 @@ export class Compositor {
         if (!annotations.isHard) {
           // @Sustained: accumulate silently; step appears as passed.
           // Apply @Message override so the accumulated error carries the custom text.
+          // Reporters read `sustained` + `error` to render the yellow label + red
+          // assertion line while keeping the step in a passed context.
           if (annotations.isSustained) {
             const msgResult = withMessage({ stepText: displayText, effectiveKeyword, status: 'failed', error });
-            this.sustainedErrors.push(msgResult.error ?? error);
-            return withTiming({ stepText: displayText, effectiveKeyword, status: 'passed' });
+            const sustainedErr = msgResult.error ?? error;
+            this.sustainedErrors.push(sustainedErr);
+            return withTiming({ stepText: displayText, effectiveKeyword, status: 'passed', sustained: true, error: sustainedErr });
           }
           // @Soft: accumulate and report passed.
           // Apply @Message override so the accumulated error carries the custom text.
@@ -888,8 +904,9 @@ export class Compositor {
           // Global assertion mode (pgwen.assertion.mode) — applies when no per-step override set
           if (this.options.assertionMode === 'sustained') {
             const msgResult = withMessage({ stepText: displayText, effectiveKeyword, status: 'failed', error });
-            this.sustainedErrors.push(msgResult.error ?? error);
-            return withTiming({ stepText: displayText, effectiveKeyword, status: 'passed' });
+            const sustainedErr = msgResult.error ?? error;
+            this.sustainedErrors.push(sustainedErr);
+            return withTiming({ stepText: displayText, effectiveKeyword, status: 'passed', sustained: true, error: sustainedErr });
           }
           if (this.options.assertionMode === 'soft') {
             const msgResult = withMessage({ stepText: displayText, effectiveKeyword, status: 'failed', error });
@@ -1085,7 +1102,7 @@ export class Compositor {
     const header = records.length > 0 ? Object.keys(records[0]!) : [];
     const tableRows: string[][] = records.map((rec) => header.map((col) => rec[col] ?? ''));
 
-    // Summary text shown in the Examples panel header (mirrors the reference framework format)
+    // Summary text shown in the Examples panel header (Preserves format)
     const parts: string[] = [`Data file: ${resolvedFilePath}`];
     if (ex.prefix) parts.push(`prefix: ${ex.prefix}`);
     if (ex.where)  parts.push(`where: ${ex.where}`);
@@ -1172,7 +1189,7 @@ export class Compositor {
     if (stepDef.annotations.isIgnoreCase) this.scope.set('pgwen._ignoreCase', 'true');
 
     // Pre-substitute $<paramName> tokens in each body step before executing.
-    // the reference framework body step syntax: $<paramName> references the captured param value.
+    // body step syntax: $<paramName> references the captured param value.
     // e.g. StepDef name "I type <value> in the field"
     //      Body step:    "I type $<value> in the text field"
     //      After sub:    "I type hello in the text field"
@@ -1222,7 +1239,7 @@ export class Compositor {
     }
 
     // StepDef-level @Soft: accumulate all body failures as soft errors; StepDef reports passed.
-    // Mirrors the reference framework's @Soft on a StepDef Gherkin tag — all body steps run in soft mode.
+    // Preserves @Soft on a StepDef Gherkin tag — all body steps run in soft mode.
     if (stepDef.annotations.isSoft && status === 'failed') {
       for (const child of children!) {
         if (child.status === 'failed' && child.error) {
@@ -1236,13 +1253,17 @@ export class Compositor {
 
     // StepDef-level @Sustained: accumulate silently; never auto-surfaced as failures.
     // Project authors must assert ${pgwen.feature.isSustainedError} to detect these.
+    // Failed children are demoted to passed but retain `sustained: true` + their
+    // error so the HTML/console reporters can render the assertion message.
     if (stepDef.annotations.isSustained && status === 'failed') {
       for (const child of children!) {
         if (child.status === 'failed' && child.error) {
           this.sustainedErrors.push(child.error);
         }
       }
-      children = children!.map((c) => c.status === 'failed' ? { ...c, status: 'passed' as StepStatus } : c);
+      children = children!.map((c) => c.status === 'failed'
+        ? { ...c, status: 'passed' as StepStatus, sustained: true }
+        : c);
       status = 'passed';
       topError = undefined;
     }
@@ -1277,7 +1298,7 @@ export class Compositor {
 function substituteParams(stepText: string, params: Record<string, string>): string {
   let result = stepText;
   for (const [name, value] of Object.entries(params)) {
-    // Replace $<name> and also "<name>" (the reference framework outline-style param tokens)
+    // Replace $<name> and also "<name>" (outline-style param tokens)
     result = result.replaceAll(`$<${name}>`, value);
     result = result.replaceAll(`<${name}>`, value);
   }
@@ -1287,7 +1308,7 @@ function substituteParams(stepText: string, params: Record<string, string>): str
 // ─── Duration / timing helpers ────────────────────────────────────────────────
 
 /**
- * Parse a the reference framework duration string to milliseconds.
+ * Parse a duration string to milliseconds.
  *
  * Supported formats:
  *   "500ms"   → 500
@@ -1364,8 +1385,8 @@ export class CompositorError extends Error {
 /**
  * Returns true for errors that should surface even in dryRun mode.
  *
- * the reference framework dry runs perform *static* validation only — syntax, bindings, and StepDef
- * resolution. "Non-static bindings are never evaluated" per the the reference framework docs, which
+ * dry runs perform *static* validation only — syntax, bindings, and StepDef
+ * resolution. "Non-static bindings are never evaluated" per the docs, which
  * means assertions on runtime values (DslAssertionError) must NOT surface in
  * dry-run. Only binding-existence failures should surface:
  *
@@ -1380,7 +1401,7 @@ export class CompositorError extends Error {
  */
 function isDataError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
-  // the reference framework's error format (from pgwen.conf / runtime): "Unbound reference: X"
+  // error format (from pgwen.conf / runtime): "Unbound reference: X"
   if (err.message.startsWith('Unbound reference:')) return true;
   // pgwen's own interpolation error (StringInterpolator): "Undefined binding: "${X}"..."
   if (err.message.startsWith('Undefined binding:')) return true;
@@ -1411,7 +1432,7 @@ function extractAttributeFromStep(stepText: string): string {
 // ─── @Examples where-clause evaluation ───────────────────────────────────────
 
 /**
- * Evaluate a the reference framework where expression for a single data row in the context of
+ * Evaluate a where expression for a single data row in the context of
  * StepDef @Examples execution, where both outer scope bindings and row column
  * values must be available.
  *
@@ -1448,7 +1469,7 @@ function evaluateWhereExamples(
       expr = expr.replace(colPattern, `'${escapeExamplesStr(row[col] ?? '')}'`);
     }
 
-    // Step 3: Normalise standalone = to == (the reference framework shorthand: STATUS = 'ACTIVE')
+    // Step 3: Normalise standalone = to == (shorthand: STATUS = 'ACTIVE')
     expr = expr.replace(/(?<![!<>=])=(?!=)/g, '==');
 
     // Step 4: Evaluate
@@ -1626,7 +1647,7 @@ export interface IfGuard {
   step: string;
   /**
    * Conditions in right-to-left evaluation order (index 0 = rightmost/innermost).
-   * the reference framework evaluates chained guards from right to left: if any is false the step
+   * evaluates chained guards from right to left: if any is false the step
    * is skipped without evaluating the remaining (outer) conditions.
    *
    * Example: "step if cond1 if cond2 if cond3"
@@ -1639,7 +1660,7 @@ export interface IfGuard {
 
 function parseIfGuard(stepText: string): IfGuard | null {
   // "otherwise" form — must be checked first (more specific pattern).
-  // No chaining with "otherwise": the reference framework only supports single condition + alt branch.
+  // No chaining with "otherwise": only supports single condition + alt branch.
   const otherwiseMatch = /^(.+?)\s+if\s+(.+?)\s+otherwise\s+(.+)$/i.exec(stepText);
   if (otherwiseMatch) {
     return {

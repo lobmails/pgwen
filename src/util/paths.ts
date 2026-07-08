@@ -4,7 +4,7 @@
  * pgwen normalises paths to forward slashes wherever they are DISPLAYED
  * (HTML/JSON reports, error messages, scope bindings such as
  * `pgwen.feature.file.path`) so that:
- *   - reports are byte-consistent across OSes and match the reference framework's unix-generated
+ *   - reports are byte-consistent across OSes and match unix-generated
  *     reference reports (report parity), and
  *   - pgwen's own behaviour is identical on Windows / macOS / Linux.
  *

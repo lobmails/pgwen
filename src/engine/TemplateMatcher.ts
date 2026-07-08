@@ -2,7 +2,7 @@
  * engine/TemplateMatcher.ts — pgwen-style template matching.
  *
  * Matches actual text against a template that may contain placeholder tokens.
- * Supports the reference framework's @{name} / @{*} syntax and pgwen's <name> syntax.
+ * Supports @{name} / @{*} syntax and pgwen's <name> syntax.
  * Each named placeholder captures any text and the captured values are
  * returned as named bindings so callers can push them into scope.
  * @{*} is a wildcard that matches any text without creating a binding.
@@ -36,7 +36,7 @@ export class TemplateMatcher {
   static match(template: string, actual: string): MatchResult {
     const placeholders: Array<string | null> = [];
 
-    // Supports both the reference framework's @{name} / @{*} syntax and pgwen's <name> syntax.
+    // Supports both @{name} / @{*} syntax and pgwen's <name> syntax.
     // @{*}  → wildcard: matches anything, does NOT bind a name (null placeholder)
     // @{name} / <name> → captures any text and binds to 'name'
     // Matching is multiline (dotAll) so templates can span newlines.

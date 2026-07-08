@@ -60,7 +60,7 @@ export interface PlaywrightRunnerOptions {
    * the next record runs. Receives the just-completed RunResult and the source
    * feature file path. For non-feed features (single record) this fires once.
    *
-   * Mirrors the reference framework's per-record streaming: HTML report updates per-record as
+   * Preserves per-record streaming: HTML report updates per-record as
    * each CSV/JSON record completes, not after the whole file finishes.
    */
   onRecordComplete?: (result: RunResult, featureFile: string) => void | Promise<void>;
@@ -167,7 +167,7 @@ export class PlaywrightRunner {
     };
 
     // Resolve ramp-up interval: stagger worker starts within each batch by
-    // `pgwen.rampup.interval.seconds` (the reference framework-parity setting). 0 / unset =
+    // `pgwen.rampup.interval.seconds` (-parity setting). 0 / unset =
     // simultaneous starts up to maxConcurrent.
     const cfgRampupRaw = options.config?.['pgwen.rampup.interval.seconds'];
     const cfgRampup = cfgRampupRaw !== undefined ? parseFloat(cfgRampupRaw) : NaN;
@@ -206,7 +206,7 @@ export class PlaywrightRunner {
   /**
    * Run features in dry-run mode — NO browser is launched.
    *
-   * Matches the reference framework's -bn behaviour: executes the full feature/meta pipeline
+   * Matches -bn behaviour: executes the full feature/meta pipeline
    * with dryRun:true so all browser-dependent DSL steps pass silently.
    * @DryRun(name=,value=) bindings are injected before interpolation.
    * HTML/JUnit/JSON reports are generated normally from the RunResults.
@@ -547,7 +547,7 @@ function makeLazyPageProxy(
 /**
  * WebDriver-style endpoints expose a `/wd/hub` path. Playwright cannot
  * connect to a WebDriver-style grid hub — it speaks either the Playwright Server
- * WebSocket protocol or Chrome DevTools Protocol. Projects migrating from the reference framework
+ * WebSocket protocol or Chrome DevTools Protocol. Projects migrating from 
  * commonly leave the old `http://hub:4444/wd/hub` URL in their config, which
  * would otherwise surface as an opaque connect failure from Playwright.
  */

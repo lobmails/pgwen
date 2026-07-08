@@ -4,7 +4,7 @@
  * Responsibilities:
  *   1. Register StepDefs parsed from .meta files.
  *   2. Match a runtime step text against registered StepDefs (with <param> capture).
- *   3. Enforce the reference framework behaviour rules (strict mode):
+ *   3. Enforce behaviour rules (strict mode):
  *        @Context  → may only be called from Given keyword chains
  *        @Action   → may only be called from When keyword chains
  *        @Assertion → may only be called from Then / But keyword chains
@@ -158,7 +158,7 @@ export class StepDefRegistry {
   }
 
   /**
-   * Enforce the reference framework behaviour rules (strict mode only).
+   * Enforce behaviour rules (strict mode only).
    * Throws BehaviourRuleError when a step keyword violates the StepDef's annotation.
    *
    * @param effectiveKeyword  The inherited keyword (after And/But resolution).
@@ -200,7 +200,7 @@ export class StepDefRegistry {
    *   - <paramName> becomes (.+) in the regex (greedy, but bounded by surrounding text)
    *   - All other regex special characters in the name are escaped
    *   - Pattern is anchored: ^...$
-   *   - Case-sensitive (the reference framework is case-sensitive)
+   *   - Case-sensitive (is case-sensitive)
    *
    * @example
    *   compilePattern("I am on the <page> page")
@@ -214,7 +214,7 @@ export class StepDefRegistry {
       const paramMatch = /^<([^>]+)>$/.exec(part);
       if (paramMatch) {
         paramNames.push(paramMatch[1]!);
-        return '(.*)';   // allow empty string captures — the reference framework permits blank param values
+        return '(.*)';   // allow empty string captures — permits blank param values
       }
       return escapeRegex(part);
     });
@@ -229,7 +229,7 @@ export class StepDefRegistry {
 /**
  * Resolve the effective Gherkin keyword for a step, applying And/But inheritance.
  *
- * Rules (mirrors the reference framework strict mode):
+ * Rules (Preserves strict mode):
  *   - Given / When / Then → themselves
  *   - And / But → inherit the nearest preceding Given/When/Then
  *   - * (bullet) → treated as Given when no predecessor, otherwise inherits

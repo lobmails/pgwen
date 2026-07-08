@@ -4,7 +4,7 @@
  * Executes shell commands using Node.js `child_process.execSync`.
  * Stdout is trimmed and stored in scope when the "capture" variant is used.
  *
- * Supported patterns (all the reference framework-parity aliases supported):
+ * Supported patterns (all -parity aliases supported):
  *   I execute the system process "<command>"
  *   I execute unix system process "<command>"
  *   I execute the system process "<command>" and capture the output as <name>

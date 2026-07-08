@@ -1,7 +1,7 @@
 /**
  * ImplicitValues.ts — Register all pgwen.* implicit value providers into Scope.
  *
- * All values listed in the reference framework Section 2.9 are supported. They are registered as
+ * All values listed Section 2.9 are supported. They are registered as
  * lazy resolvers in the global scope so they are always available without explicit
  * binding. Values that depend on execution state are re-computed on each access.
  *
@@ -257,7 +257,7 @@ export class ImplicitValues {
     // ── Data feed record ─────────────────────────────────────────────────
     scope.setLazy('pgwen.data.record.index',  () => String(ctx.dataRecordIndex ?? 0));
     scope.setLazy('pgwen.data.record.number', () => String((ctx.dataRecordIndex ?? 0) + 1));
-    // Legacy (non-pgwen-prefixed) aliases — the reference framework also binds these for backwards compat
+    // Legacy (non-pgwen-prefixed) aliases — also binds these for backwards compat
     scope.setLazy('data.record.index',  () => String(ctx.dataRecordIndex ?? 0));
     scope.setLazy('data.record.number', () => String((ctx.dataRecordIndex ?? 0) + 1));
 

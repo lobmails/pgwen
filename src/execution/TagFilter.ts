@@ -1,7 +1,7 @@
 /**
  * TagFilter.ts — Filter scenarios by tag expressions.
  *
- * Tag expression syntax (matches the reference framework CLI --tags argument):
+ * Tag expression syntax (preserves CLI --tags argument):
  *   @tag              — include only scenarios tagged @tag
  *   ~@tag             — exclude scenarios tagged @tag (tilde = NOT)
  *   @tag1 and @tag2   — both tags required

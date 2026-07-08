@@ -1,7 +1,7 @@
 /**
  * assertions/dropdowns.ts — Dropdown text/value assertions.
  *
- * the reference framework-form patterns:
+ * -form patterns:
  *   <dropdown> <text|value> should[ not] be <blank|empty>
  *   <dropdown> <text|value> should[ not] (be|contain|start with|end with|match regex) "<expr>"
  *

@@ -6,7 +6,7 @@
  *   pgwen [options] [features...]
  *
  * Options:
- *   -p <profile>            Profile name — loads pgwen/conf/profiles/<profile>.conf
+ *   -p <A[,B,C,...]>        Profile name(s). Comma-separated → sequential multi-profile launch.
  *   -m <meta>               Common meta file or directory (repeatable)
  *   -i <input>              Input data feed (CSV or JSON)
  *   -b, -bn                 Batch / batch+dry-run mode
@@ -48,7 +48,14 @@ import type { BrowserType } from '../engine/BrowserConfig';
 // ─── Argument parsing ─────────────────────────────────────────────────────────
 
 export interface ParsedArgs {
-  profile?: string;
+  /**
+   * Profile names to launch. `-p A,B,C` splits on comma so multiple profiles
+   * run sequentially in one invocation (). Empty array
+   * means "no profile" — pgwen.conf's launch.options settings drive the run.
+   * A convenience getter `profile` returns the first entry for callers that
+   * only care about the single-profile shape (REPL banner, HTML report label).
+   */
+  profiles: string[];
   /** Extra config files loaded after base pgwen.conf and before profile conf (-c flag, repeatable) */
   configs: string[];
   /** Show version and exit */
@@ -83,7 +90,7 @@ export interface ParsedArgs {
   debug: boolean;
   /**
    * Interactive mode — after all features complete and reports are printed,
-   * automatically open the REPL (matching the reference framework's non-batch default behaviour).
+   * automatically open the REPL (matching non-batch default behaviour).
    */
   interactive: boolean;
   /** Run format sub-command (--format flag alias) */
@@ -92,6 +99,7 @@ export interface ParsedArgs {
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const result: ParsedArgs = {
+    profiles: [],
     configs: [],
     meta: [],
     dryRun: false,
@@ -123,14 +131,22 @@ export function parseArgs(argv: string[]): ParsedArgs {
         break;
 
       case '--verbose':
-        // the reference framework uses -v for verbose; pgwen uses -v for version (--version).
+        // uses -v for verbose; pgwen uses -v for version (--version).
         // --verbose is accepted as a no-op so project scripts that pass --verbose
         // don't fail. Use pgwen --version to print the version number.
         break;
 
       case '-p': {
         const profileVal = argv[++i];
-        if (profileVal !== undefined) result.profile = profileVal;
+        if (profileVal !== undefined) {
+          // Comma-separated list (): -p A,B,C runs
+          // each profile sequentially in one invocation. Repeatable too:
+          // -p A -p B is equivalent to -p A,B.
+          for (const p of profileVal.split(',')) {
+            const trimmed = p.trim();
+            if (trimmed) result.profiles.push(trimmed);
+          }
+        }
         break;
       }
 
@@ -240,7 +256,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
  * Load the layered pgwen configuration:
  *   base pgwen.conf → extra -c confs (in order) → profile conf (if -p given)
  *
- * The `-c` flag mirrors the reference framework's `-c` flag: arbitrary additional config files
+ * The `-c` flag Preserves `-c` flag: arbitrary additional config files
  * overlaid on top of pgwen.conf and below the profile conf. Used for browser
  * overlay files like `pgwen/conf/browsers/grid.conf` in CI pipelines.
  */
@@ -252,14 +268,14 @@ export function loadConfig(baseDir: string, profile?: string, extraConfigs?: str
     configFiles.push(baseConf);
   }
 
-  // Auto-load env conf (pgwen.target.env → pgwen/conf/env/<env>.conf), mirroring the reference framework behaviour.
+  // Auto-load env conf (pgwen.target.env → pgwen/conf/env/<env>.conf), mirroring behaviour.
   // We peek at pgwen.conf alone (via loadFile) to read pgwen.target.env without an extra loadLayered call.
   if (fs.existsSync(baseConf)) {
     try {
       const baseOnly = loadFile(baseConf);
       const targetEnv = baseOnly['pgwen.target.env'];
       if (targetEnv) {
-        // Support both HOCON (.conf) and JSON (.json) env config files — the reference framework projects use .json.
+        // Support both HOCON (.conf) and JSON (.json) env config files — projects use .json.
         // Prefer .conf when both exist (HOCON is the richer format).
         const envConf = path.join(baseDir, 'pgwen', 'conf', 'env', `${targetEnv}.conf`);
         const envJson = path.join(baseDir, 'pgwen', 'conf', 'env', `${targetEnv}.json`);
@@ -285,7 +301,7 @@ export function loadConfig(baseDir: string, profile?: string, extraConfigs?: str
 
   if (profile) {
     // Profile inheritance: load base.conf first (if it exists and profile != 'base'),
-    // then overlay the named profile on top — mirrors the reference framework's profile layering.
+    // then overlay the named profile on top — Preserves profile layering.
     if (profile !== 'base') {
       const baseProfileConf = path.join(baseDir, 'pgwen', 'conf', 'profiles', 'base.conf');
       if (fs.existsSync(baseProfileConf)) {
@@ -384,7 +400,10 @@ Usage:
                 [--allow-oversized] [--provider <name>]
 
 Options:
-  -p <profile>            Profile name (loads pgwen/conf/profiles/<profile>.conf)
+  -p <A[,B,C,...]>        Profile name(s). Comma-separated list runs each profile
+                          sequentially; repeatable (-p A -p B is equivalent to -p A,B).
+                          When more than one profile is given, each profile's reports
+                          are written under pgwen/output/<profile>/.
   -c <conf>               Additional config file overlaid on pgwen.conf (repeatable)
   -m <meta>               Common meta file or directory (repeatable)
   -i <input>              Input data feed (CSV or JSON)
@@ -565,21 +584,29 @@ export async function main(argv?: string[]): Promise<void> {
   }
 
   const baseDir = process.cwd();
-  const { config, maskedKeys } = loadConfig(baseDir, args.profile, args.configs);
 
-  // Build browser config from pgwen.conf + CLI flags
-  const browserConfig = resolveBrowserConfig(config, {
-    ...(args.browser ? { type: args.browser } : {}),
-    ...(args.headed ? { headless: false } : {}),
-    ...(args.slowMo !== undefined ? { slowMo: args.slowMo } : {}),
-  });
+  // ─── Profile list ─────────────────────────────────────────────────────────
+  // `-p A,B,C` runs profiles sequentially, . When no
+  // profile is given, we treat that as a single anonymous run (undefined),
+  // preserving the pre-multi-profile behaviour.
+  const profileList: (string | undefined)[] =
+    args.profiles.length > 0 ? args.profiles : [undefined];
+  const totalProfiles = profileList.length;
 
   // ─── REPL mode ────────────────────────────────────────────────────────────
+  // `--repl` launches the interactive REPL and returns — no feature execution.
+  // With multiple profiles the last one wins ( semantics
+  // for post-execution REPL: last profile provides the context).
   if (args.repl) {
+    const replProfile = profileList[profileList.length - 1];
+    const { config, maskedKeys } = loadConfig(baseDir, replProfile, args.configs);
+    const browserConfig = resolveBrowserConfig(config, {
+      ...(args.browser ? { type: args.browser } : {}),
+      ...(args.headed ? { headless: false } : {}),
+      ...(args.slowMo !== undefined ? { slowMo: args.slowMo } : {}),
+    });
     const meta = resolveMeta(args, config);
-    // Pass feature files so Repl can load associative meta (e.g. Example.meta)
     const replFeatureFiles = resolveFeatureFiles(args, config);
-    // Pass input data feed so Repl can pre-load first CSV record into scope
     const replDataFeed = args.dataFeed ?? config['pgwen.launch.options.inputData'];
     const repl = new Repl(browserConfig);
     await repl.start({
@@ -589,11 +616,151 @@ export async function main(argv?: string[]): Promise<void> {
       config,
       maskedSettings: maskedKeys,
       version: (() => { try { return (require('../../package.json') as { version: string }).version; } catch { return ''; } })(),
-      ...(args.profile ? { profile: args.profile } : {}),
+      ...(replProfile ? { profile: replProfile } : {}),
       ...(config['pgwen.target.env'] ? { targetEnv: config['pgwen.target.env'] } : {}),
     });
     process.exit(0);
   }
+
+  // ─── Per-profile execution loop ───────────────────────────────────────────
+  // Each profile is a separate CLI-shaped run: own config, own output subdir,
+  // own reports. Stop on first failure UNLESS in dry-run (dry-run runs every
+  // profile so users see the full picture). Matches .16.2.
+  interface ProfileOutcome {
+    name: string;
+    status: 'passed' | 'failed' | 'skipped';
+    durationMs: number;
+    outputDir: string;
+  }
+  const profileOutcomes: ProfileOutcome[] = [];
+  let lastLoopState: {
+    baseDir: string;
+    meta: string[];
+    featureFiles: string[];
+    config: Config;
+    maskedKeys: ReadonlySet<string>;
+    browserConfig: import('../engine/BrowserConfig').BrowserConfig;
+    lastScope?: Scope;
+    profileName?: string;
+  } | undefined;
+  let anyFailed = false;
+
+  for (let profileIdx = 0; profileIdx < profileList.length; profileIdx++) {
+    const profileName = profileList[profileIdx];
+    const isMultiProfile = totalProfiles > 1;
+
+    // Skip remaining profiles after a failure (unless dry-run — we want to see
+    // all resolution errors across the whole suite in one go).
+    if (anyFailed && !args.dryRun) {
+      profileOutcomes.push({
+        name: profileName ?? '(default)',
+        status: 'skipped',
+        durationMs: 0,
+        outputDir: '',
+      });
+      continue;
+    }
+
+    if (isMultiProfile) {
+      // Announce which profile is starting — one "Launching: pgwen -p <name>" line per profile.
+      const restOfArgs = rawArgs
+        .filter((_, i, arr) => {
+          if (arr[i - 1] === '-p') return false;
+          if (_ === '-p') return false;
+          return true;
+        })
+        .join(' ');
+      console.log(`\nLaunching: pgwen -p ${profileName} ${restOfArgs}`.trimEnd() + '\n');
+    }
+
+    const profileStartTime = Date.now();
+    const outcome = await runOneProfile(args, rawArgs, baseDir, profileName, profileIdx, totalProfiles);
+    const profileDuration = Date.now() - profileStartTime;
+
+    profileOutcomes.push({
+      name: profileName ?? '(default)',
+      status: outcome.anyFailed ? 'failed' : 'passed',
+      durationMs: profileDuration,
+      outputDir: outcome.outputDir,
+    });
+    lastLoopState = outcome.state;
+    if (outcome.anyFailed) anyFailed = true;
+  }
+
+  // ─── Cross-profile summary ────────────────────────────────────────────────
+  // Only printed when > 1 profile was launched. Matches 's
+  // "results of all profiles at end" block.
+  if (totalProfiles > 1) {
+    const reporter = new ConsoleReporter({
+      version: (() => { try { return (require('../../package.json') as { version: string }).version; } catch { return ''; } })(),
+    });
+    reporter.printProfileResults(profileOutcomes);
+  }
+
+  // ─── Post-execution REPL ──────────────────────────────────────────────────
+  // : only open REPL after the LAST profile (or after ANY failure).
+  // For pgwen the post-run REPL is the always-on default (non-dryRun, non--repl).
+  // Multi-profile changes nothing here — we're at the end of the whole run.
+  if (!args.dryRun && !args.repl && lastLoopState) {
+    const iRepl = new Repl(lastLoopState.browserConfig);
+    await iRepl.start({
+      baseDir: lastLoopState.baseDir,
+      meta: lastLoopState.meta,
+      featureFiles: lastLoopState.featureFiles,
+      config: lastLoopState.config,
+      maskedSettings: lastLoopState.maskedKeys,
+      version: (() => { try { return (require('../../package.json') as { version: string }).version; } catch { return ''; } })(),
+      ...(lastLoopState.profileName ? { profile: lastLoopState.profileName } : {}),
+      ...(lastLoopState.config['pgwen.target.env'] ? { targetEnv: lastLoopState.config['pgwen.target.env'] } : {}),
+      ...(lastLoopState.lastScope ? { inheritedScope: lastLoopState.lastScope } : {}),
+    });
+  }
+
+  process.exit(anyFailed ? 1 : 0);
+}
+
+// ─── Per-profile execution ────────────────────────────────────────────────────
+
+interface RunProfileOutcome {
+  anyFailed: boolean;
+  outputDir: string;
+  state: {
+    baseDir: string;
+    meta: string[];
+    featureFiles: string[];
+    config: Config;
+    maskedKeys: ReadonlySet<string>;
+    browserConfig: import('../engine/BrowserConfig').BrowserConfig;
+    lastScope?: Scope;
+    profileName?: string;
+  };
+}
+
+/**
+ * Execute a single profile end-to-end: load config → run features → write
+ * reports. Extracted from main() so that main() can loop and chain profiles
+ * sequentially ( style).
+ *
+ * When `totalProfiles > 1`, this function isolates each profile's output
+ * under `pgwen/output/<profile>/` so profiles running back-to-back don't
+ * overwrite each other's HTML / JUnit / JSON / CSV reports.
+ */
+async function runOneProfile(
+  args: ParsedArgs,
+  rawArgs: string[],
+  baseDir: string,
+  profileName: string | undefined,
+  profileIdx: number,
+  totalProfiles: number,
+): Promise<RunProfileOutcome> {
+  const { config, maskedKeys } = loadConfig(baseDir, profileName, args.configs);
+
+  // Build browser config from pgwen.conf + CLI flags
+  const browserConfig = resolveBrowserConfig(config, {
+    ...(args.browser ? { type: args.browser } : {}),
+    ...(args.headed ? { headless: false } : {}),
+    ...(args.slowMo !== undefined ? { slowMo: args.slowMo } : {}),
+  });
 
   // Resolve feature files and meta from args + config
   const featureFiles = resolveFeatureFiles(args, config);
@@ -652,7 +819,7 @@ export async function main(argv?: string[]): Promise<void> {
   const tagExpr = args.tags ?? rawTagConfig;
   const tagFilter = TagFilter.fromExpression(tagExpr);
 
-  // Dry run mode — two phases matching the reference framework's -bn behaviour:
+  // Dry run mode — two phases matching -bn behaviour:
   //   Phase 1: Static step-resolution check — runs silently; undefined steps will surface as
   //            "Undefined step" failures inline during Phase 2 execution.
   //   Phase 2: Full pipeline execution without a browser — all steps execute; browser-dependent
@@ -681,7 +848,7 @@ export async function main(argv?: string[]): Promise<void> {
     config,
     maskedSettings: maskedKeys,
     dryRun: args.dryRun,
-    ...(args.profile !== undefined ? { profileName: args.profile } : {}),
+    ...(profileName !== undefined ? { profileName } : {}),
     ...(config['pgwen.target.env'] ? { targetEnv: config['pgwen.target.env'] } : {}),
     ...(assertionMode !== undefined ? { assertionMode } : {}),
     ...(dataFeed !== undefined ? { dataFeed } : {}),
@@ -710,7 +877,7 @@ export async function main(argv?: string[]): Promise<void> {
           config,
           maskedSettings: maskedKeys,
           version: bpVersion,
-          ...(args.profile ? { profile: args.profile } : {}),
+          ...(profileName ? { profile: profileName } : {}),
           ...(config['pgwen.target.env'] ? { targetEnv: config['pgwen.target.env'] } : {}),
         });
       },
@@ -719,9 +886,9 @@ export async function main(argv?: string[]): Promise<void> {
 
   const screenshotOnFailure = config['pgwen.web.capture.screenshots.enabled'] === 'true';
 
-  // Console log depth — 1 = one level of StepDef children (the reference framework default).
+  // Console log depth — 1 = one level of StepDef children (default).
   // In dry-run mode always use -1 (unlimited) regardless of config, so all nested
-  // steps are shown for full step-resolution validation — mirrors the reference framework -bn.
+  // steps are shown for full step-resolution validation — Preserves -bn.
   // In normal mode, config key pgwen.console.log.depth takes precedence.
   let consoleLogDepth: number;
   if (args.dryRun) {
@@ -745,12 +912,22 @@ export async function main(argv?: string[]): Promise<void> {
     env: targetEnv,
   });
 
-  reporter.printBanner();
+  // Only print the pgwen banner for the FIRST profile — subsequent profiles
+  // are announced by main()'s "Launching: pgwen -p <name>" line.
+  if (profileIdx === 0) reporter.printBanner();
 
   const runStartTime = new Date();
 
+  // When more than one profile is being launched, isolate each profile's
+  // output under `<args.output>/<profile>/` so back-to-back profiles don't
+  // overwrite each other's HTML / JUnit / JSON / CSV reports. Single-profile
+  // runs keep the flat layout for backward compatibility.
+  const effectiveOutput = totalProfiles > 1 && profileName
+    ? path.join(args.output, profileName)
+    : args.output;
+
   // Pre-initialise HTML output dir so feature pages can be written immediately.
-  const htmlOutputDir = path.join(baseDir, args.output, 'reports', 'html');
+  const htmlOutputDir = path.join(baseDir, effectiveOutput, 'reports', 'html');
   const htmlReporter = new HtmlReporter();
   const htmlCommand = rawArgs.join(' ');
   const htmlOpts = { version: pgwenVersion || '1.0.0', command: htmlCommand };
@@ -766,7 +943,7 @@ export async function main(argv?: string[]): Promise<void> {
   // Streaming: print each record's result to console as soon as it completes
   // and immediately write its HTML page + update index.html. This is the
   // per-record streaming path — for CSV/JSON feeds with N records, the HTML
-  // report updates N times as each record completes, matching the reference framework's
+  // report updates N times as each record completes, matching 's
   // progressive output instead of waiting for the whole file to finish.
   const streamedResults: RunResult[] = [];
   const emitOne = (r: RunResult): void => {
@@ -784,7 +961,7 @@ export async function main(argv?: string[]): Promise<void> {
 
   let results: RunResult[];
   const pwRunnerOptions: PlaywrightRunnerOptions = {
-    outputDir: path.join(baseDir, args.output),
+    outputDir: path.join(baseDir, effectiveOutput),
     failfastExit,
     screenshotOnFailure,
     onRecordComplete: (r) => emitOne(r),
@@ -830,7 +1007,7 @@ export async function main(argv?: string[]): Promise<void> {
   }
 
   // JUnit XML report — generated silently (not surfaced in console Reports section)
-  const junitOutputDir = path.join(baseDir, args.output, 'reports', 'junit');
+  const junitOutputDir = path.join(baseDir, effectiveOutput, 'reports', 'junit');
   try {
     const junitReporter = new JUnitReporter();
     junitReporter.generate(traces, junitOutputDir, { version: pgwenVersion || '1.0.0' });
@@ -839,7 +1016,7 @@ export async function main(argv?: string[]): Promise<void> {
   }
 
   // JSON report — generated silently (not surfaced in console Reports section)
-  const jsonOutputDir = path.join(baseDir, args.output, 'reports', 'json');
+  const jsonOutputDir = path.join(baseDir, effectiveOutput, 'reports', 'json');
   try {
     const jsonReporter = new JsonReporter();
     const command = rawArgs.join(' ');
@@ -849,7 +1026,7 @@ export async function main(argv?: string[]): Promise<void> {
   }
 
   // CSV report — generated silently (not surfaced in console Reports section)
-  const csvOutputDir = path.join(baseDir, args.output, 'reports', 'csv');
+  const csvOutputDir = path.join(baseDir, effectiveOutput, 'reports', 'csv');
   try {
     const csvReporter = new CsvReporter();
     csvReporter.generate(traces, csvOutputDir, { version: pgwenVersion || '1.0.0' });
@@ -863,7 +1040,7 @@ export async function main(argv?: string[]): Promise<void> {
   //   <output>/reports/diagnosis-history/<feature>__<scenario>__<isoStamp>.json
   // Feeds the false-positive-rate measurement that gates the AI track.
   if (isDiagnoseHistoryEnabled(config)) {
-    const historyReportsDir = path.join(baseDir, args.output, 'reports');
+    const historyReportsDir = path.join(baseDir, effectiveOutput, 'reports');
     for (const r of results) {
       try {
         writeFailureHistory(r, historyReportsDir, pgwenVersion || '1.0.0');
@@ -873,7 +1050,7 @@ export async function main(argv?: string[]): Promise<void> {
     }
   }
 
-  // RESULTS — project-specific data-driven output files from ResultsReporter (matches the reference framework format).
+  // RESULTS — project-specific data-driven output files from ResultsReporter (preserves format).
   // First file uses the 'RESULTS' label; subsequent files use an empty label so they
   // align flush under the first entry (right-pad to same width = spaces only).
   if (resultsReporter) {
@@ -894,28 +1071,21 @@ export async function main(argv?: string[]): Promise<void> {
 
   reporter.printReports(generatedReports);
 
-  // Open REPL after execution completes — matches the reference framework's non-batch default behaviour
-  // (always opens at the end, even on failure). Skip for dry-run and --repl mode.
-  if (!args.dryRun && !args.repl) {
-    const iRepl = new Repl(browserConfig);
-    // Pass the scope from the last feature run so REPL can inspect all bound variables
-    // (e.g. `env "todayIso"` returns the value rather than "(scope is empty)").
-    const inheritedScope = pwRunner.lastScope;
-    await iRepl.start({
-      baseDir,
-      meta,
-      featureFiles,
-      config,
-      maskedSettings: maskedKeys,
-      version: pgwenVersion,
-      ...(args.profile ? { profile: args.profile } : {}),
-      ...(config['pgwen.target.env'] ? { targetEnv: config['pgwen.target.env'] } : {}),
-      ...(inheritedScope ? { inheritedScope } : {}),
-    });
-  }
-
-  const anyFailed = results.some((r) => r.status === 'failed');
-  process.exit(anyFailed ? 1 : 0);
+  // Return per-profile outcome — main() aggregates across profiles and
+  // opens the post-execution REPL once, at the end of the last profile
+  // (or after any failure). See 's REPL-on-last-profile rule.
+  const anyFailedInProfile = results.some((r) => r.status === 'failed');
+  const state: RunProfileOutcome['state'] = {
+    baseDir,
+    meta,
+    featureFiles,
+    config,
+    maskedKeys,
+    browserConfig,
+    ...(pwRunner.lastScope ? { lastScope: pwRunner.lastScope } : {}),
+    ...(profileName ? { profileName } : {}),
+  };
+  return { anyFailed: anyFailedInProfile, outputDir: path.join(baseDir, effectiveOutput), state };
 }
 
 // ─── CLI bootstrap ────────────────────────────────────────────────────────────

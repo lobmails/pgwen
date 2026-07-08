@@ -1,7 +1,7 @@
 /**
  * capture/capture.ts — Value capture steps.
  *
- * Implements all the reference framework "I capture ..." patterns.
+ * Implements all "I capture ..." patterns.
  * Capture is always eager — the value is read from the page immediately
  * and stored as a literal string in scope.
  *
@@ -57,7 +57,7 @@ export function registerCapture(registry: DslRegistry): void {
 
   // I capture the [current] screenshot [as <name>]
   // Takes a full-page screenshot and stores the file path in scope. The optional
-  // `current` keyword matches the reference framework's documented form (`I capture the current
+  // `current` keyword preserves documented form (`I capture the current
   // screenshot`); both wordings resolve to the same handler. Registered HERE
   // (before the generic `I capture <element>` patterns below) so the literal
   // "screenshot" token doesn't get consumed as an element name.
@@ -101,7 +101,7 @@ export function registerCapture(registry: DslRegistry): void {
 
   // I capture the [text|content] in <jsonRef> by json path "<expr>" as <name>
   // Evaluates a dot-notation JSON path against a scope binding that holds JSON content.
-  // the reference framework-form wording uses "content"; pgwen also accepts "text" and the bare form
+  // -form wording uses "content"; pgwen also accepts "text" and the bare form
   // (`I capture <ref> by json path …`) for parity with existing project code.
   // Registered before "I capture the text in (.+) as (.+)" to avoid being swallowed.
   registry.register(

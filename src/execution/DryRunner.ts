@@ -5,7 +5,7 @@
  * every step can be resolved to either a registered StepDef or a DSL handler.
  * No browser is launched; no side effects occur.
  *
- * Used as the pre-flight quality gate (-bn flag in the reference framework).
+ * Used as the pre-flight quality gate (-bn flag in ).
  * Returns a list of undefined step locations.
  */
 

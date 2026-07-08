@@ -1,7 +1,7 @@
 /**
  * data/ResultsWriter.ts — CSV results output for the @Results annotation.
  *
- * Implements the reference framework's @Results pattern:
+ * Implements @Results pattern:
  *   @Results("output/resultsALL.csv")
  *   Scenario: process account
  *
@@ -42,7 +42,7 @@ export function csvEscape(value: string): string {
 
 /**
  * Escape a value for use in a CSV field where the consumer expects backslash escaping
- * (the reference framework's csvEscaped implicit value format).
+ * (csvEscaped implicit value format).
  * Replaces newlines with \n and commas with \, for inline embedding.
  */
 export function csvEscapePgwen(value: string): string {

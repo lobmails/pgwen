@@ -65,7 +65,7 @@ export function registerDropdownActions(registry: DslRegistry): void {
   );
 
   // I select "<v>" in <dropdown> by value|text|index
-  //   the reference framework alternate-order wording — the `by <kind>` suffix follows the dropdown
+  //   alternate-order wording — the `by <kind>` suffix follows the dropdown
   //   reference instead of preceding it. Registered BEFORE the bare `I select
   //   "<option>" in <dropdown>` form so the suffix doesn't get swallowed by
   //   the broader pattern's `(.+)` element-name capture.

@@ -1,7 +1,7 @@
 /**
  * bindings/text.ts — Text and value binding steps.
  *
- * Implements the reference framework binding DSL patterns that assign values to named bindings in scope:
+ * Implements binding DSL patterns that assign values to named bindings in scope:
  *   <name> is "<value>"                            — literal string binding
  *   <name> is blank                                — bind to empty string
  *   <name> is empty                               — bind to empty string (alias)
@@ -76,7 +76,7 @@ export function registerTextBindings(registry: DslRegistry): void {
   );
 
   // <name> is defined by javascript "<script>"  — lazy JS evaluation (transparent)
-  // Also stores <name>/javascript = "<script>" as a literal (the reference framework behaviour — visible in env).
+  // Also stores <name>/javascript = "<script>" as a literal (behaviour — visible in env).
   // Uses [\s\S]+ so multi-line scripts (from paste-mode """" blocks) are matched.
   registry.register(
     /^(.+) is defined by (?:javascript|js) "([\s\S]+)"$/i,
@@ -257,8 +257,8 @@ export function registerTextBindings(registry: DslRegistry): void {
   );
 
   // <name> is defined by file "<filepath>"
-  //   the reference framework-form wording variant. Same lazy-binding behaviour as the
-  //   "in the file" form above — projects written against the canonical the reference framework
+  //   -form wording variant. Same lazy-binding behaviour as the
+  //   "in the file" form above — projects written against the canonical 
   //   docs use this phrasing so pgwen must accept it directly.
   registry.register(
     /^(.+) is defined by file "(.+)"$/,
@@ -296,9 +296,9 @@ export function registerTextBindings(registry: DslRegistry): void {
   );
 
   // <name> is defined in <jsonRef> by json path "<path>"
-  //   the reference framework-form word order (the reference comes BEFORE the json path). Same
-  //   behaviour as the pgwen-form below; this just accepts the canonical the reference framework
-  //   wording so projects written against the the reference framework docs resolve directly. Both
+  //   -form word order (the reference comes BEFORE the json path). Same
+  //   behaviour as the pgwen-form below; this just accepts the canonical 
+  //   wording so projects written against the docs resolve directly. Both
   //   forms share the same lazy-binding logic.
   registry.register(
     /^(.+) is defined in (.+) by json path "(.+)"$/,
@@ -329,7 +329,7 @@ export function registerTextBindings(registry: DslRegistry): void {
 
   // <name> is defined by the <nodeType> in <xmlRef> by xpath "<expression>"
   //
-  // the reference framework-form XML binding with explicit node-type selector:
+  // -form XML binding with explicit node-type selector:
   //   text     — return the string value of the matched node (default-like form)
   //   node     — return the single matched node serialised as XML
   //   nodeset  — return ALL matched nodes serialised and concatenated
@@ -490,7 +490,7 @@ export function registerTextBindings(registry: DslRegistry): void {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Wraps a the reference framework-style JS script that uses `arguments[0]` into a Playwright-compatible
+ * Wraps a -style JS script that uses `arguments[0]` into a Playwright-compatible
  * element function.  Playwright's locator.evaluate() passes the DOM element as the
  * first parameter of the function, but does NOT populate `arguments[0]`.
  * This wrapper renames `arguments[0]` to `__pgwenEl__` and wraps the script.
@@ -533,7 +533,7 @@ function isBrowserClosedError(e: unknown): boolean {
  *   $[?(@.x)]          — existence filter
  *
  * Returns the first result for single-value paths, or a JSON array string for
- * multi-value paths (wildcard/recursive/filter), matching the reference framework's result format.
+ * multi-value paths (wildcard/recursive/filter), matching result format.
  */
 function evaluateJsonPath(obj: unknown, path: string): unknown {
   const results = jsonPathQuery(obj, path);
